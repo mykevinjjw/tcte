@@ -1,0 +1,133 @@
+@keyframes bubble-ani 
+{
+    0%
+    {
+        -webkit-transform:translateY(0);
+        transform:translateY(0);
+    }
+    100%
+    {
+        -webkit-transform:translateY(-1080px);
+        transform:translateY(-1080px);
+    }
+}
+body
+{
+    padding: 0;
+    margin: 0;
+    background:linear-gradient(250deg,#2980b9,#8144ad);
+    height: 100vh;
+    overflow: hidden;
+}
+
+#h1
+{
+  
+    font-size: 5vh;
+    text-align: center;   
+    position: relative;
+    top: 40%;
+    left: 50%; 
+    transform: translate(-50%,-80%);
+  
+}
+h1 t
+{
+    text-align: center;
+    font-size: 9vh;
+    
+}
+h3
+{
+    text-align: center;
+    font-size: 6vh;
+    position: relative;
+    top: 40%;
+    left: 50%;
+    transform: translate(-50%,-50%);
+    border:black  solid 9px;
+    width: 42vh;
+    border-radius: 26px ;
+}
+
+
+@font-face
+{
+    font-family: 'seto_font';
+    src : url('./setofont/setofont.ttf');
+}
+.text_dayt
+{
+    text-align: left;
+    /* width: 1000px; */
+}
+.bubble
+{
+  position:absolute;
+  top:0;
+  left:0;
+  width:100%;
+  height:100%;
+  z-index:0;
+  transform:translateZ(0);
+}
+.bubble li
+{
+  position:absolute;
+  list-style:none;
+  display:block;
+  background:rgba(255,255,255,0.2);
+  bottom:-100px; 
+  animation:bubble-ani 20s linear infinite;
+  border-radius:100%;
+}
+.bubble li:before 
+{
+    position: absolute;
+    left: 20%;
+    top: 21%;
+    width: 25%;
+    content: '';
+    background: rgba(255,255,255,0.2);
+    display: block;
+    height: 25%;
+    border-radius: 100%;
+}
+.bubble li:nth-child(1)
+{
+    width:20px;
+    height:20px;
+    left:15%;
+}
+.bubble li:nth-child(2)
+{
+    width:40px;
+    height:40px;
+    left:40%;
+    animation-duration:13s;
+    animation-delay:2s;
+}
+.bubble li:nth-child(3)
+{
+    width:25px;
+    height:25px;
+    left:30%;
+    animation-duration:10s;
+    animation-delay:3.5s;
+}
+.bubble li:nth-child(4)
+{
+    width:60px;
+    height:60px;
+    left:55%;
+    animation-duration:10s;
+    animation-delay:1.5s;
+}
+.bubble li:nth-child(5)
+{
+    width:20px;
+    height:20px;
+    left:35%;
+    animation-duration:10s;
+    animation-delay:2s;
+}
