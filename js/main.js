@@ -1,11 +1,11 @@
 $(document).ready(function () 
 {
-    let day_time = new Date('4/26/2025')
+    let day_time = new Date('4/25/2026')
     let  da = new Date()
-    let A= Math.floor(day_time-da)
-    day = A/(1000 * 3600 * 24)+1
+    let A= Math.abs(day_time-da)
+    day = Math.ceil(A/(1000 * 3600 * 24))
     
-    days = Math.round(day)
+    days = Math.abs(day)
     // days = 
     console.log(days)
     if (days >0)
