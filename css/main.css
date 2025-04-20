@@ -1,3 +1,4 @@
+
 @keyframes bubble-ani 
 {
     0%
@@ -13,16 +14,20 @@
 }
 body
 {
-    padding: 0;
+    /* padding: 0; */
     margin: 0;
     background:linear-gradient(250deg,#2980b9,#8144ad);
     height: 100vh;
     overflow: hidden;
+    font-family: "Poetsen One", sans-serif;
+    font-weight: 400;
+    font-style: normal;
 }
 
 #h1
 {
-  
+    padding: 0;
+    margin: 0;
     font-size: 5vh;
     text-align: center;   
     position: relative;
@@ -33,12 +38,17 @@ body
 }
 h1 t
 {
+    
+    padding: 0;
+    margin: 0;
     text-align: center;
     font-size: 9vh;
     
 }
 h3
 {
+    padding: 0;
+    margin: 0;
     text-align: center;
     font-size: 6vh;
     position: relative;
