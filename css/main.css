@@ -1,4 +1,23 @@
+html {
+    height: 100%;
+    /* overflow: hidden; */ /* Keep html overflow default or hidden, test both */
+    margin: 0;
+    font-family: "Poetsen One", sans-serif;
+    font-weight: 400;
+    font-style: normal;
+}
 
+body {
+    position: fixed; /* <-- Add this */
+    top: 0;          /* <-- Add this */
+    left: 0;         /* <-- Add this */
+    width: 100%;     /* <-- Add this */
+    height: 100%;    /* <-- Ensure this is set */
+    overflow: hidden; /* <-- Keep this */
+    margin: 0;
+    background: linear-gradient(250deg, #2980b9, #8144ad);
+    font-family: inherit; /* Inherit from html */
+}
 @keyframes bubble-ani 
 {
     0%
@@ -12,17 +31,7 @@
         transform:translateY(-1080px);
     }
 }
-body
-{
-    /* padding: 0; */
-    margin: 0;
-    background:linear-gradient(250deg,#2980b9,#8144ad);
-    height: 100vh;
-    overflow: hidden;
-    font-family: "Poetsen One", sans-serif;
-    font-weight: 400;
-    font-style: normal;
-}
+
 
 #h1
 {
