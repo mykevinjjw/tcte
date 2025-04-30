@@ -1,8 +1,9 @@
 $(document).ready(function () 
 {
-    let day_time = new Date('4/26/2025')
+    let day_time = new Date('4/25/2026')
+    
     let  da = new Date()
-    if (day_time>da)
+    if (day_time>=da)
     {
         let A= Math.abs(day_time-da)
         day = Math.ceil(A/(1000 * 3600 * 24))   
