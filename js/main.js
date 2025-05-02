@@ -30,7 +30,7 @@ $(document).ready(function ()
     else
     {
         $("#h1").html('');
-        $(".h3_text").html('2025統測<br>已經過了喔!<br><a class="link" href=\'https://a2026.mykevinjj.dpdns.org\'>前往2026版</a>');
+        $(".h3_text").html('2026統測<br>已經過了喔!<br>待更新中...');
         // $('.public').css('top', '-20%');
     }
 }
