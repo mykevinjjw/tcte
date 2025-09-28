@@ -1,37 +1,29 @@
-$(document).ready(function () 
-{
-    let day_time = new Date('4/25/2026')
-    
-    let  da = new Date()
-    if (day_time>=da)
-    {
-        let A= Math.abs(day_time-da)
-        day = Math.ceil(A/(1000 * 3600 * 24))   
+// 當整個網頁文件都載入完成後，執行此匿名函式
+$(document).ready(function () {
 
-        days = Math.abs(day)
-        // days = 
-        console.log(days)
-        if (days >0)
-        {
-            $("#day").html(days+"天");
-        }
-        else
-        {
-            $(h1).html('');
-        }
-    
-        if (days<=10) 
-        {
-            $("#day").css('font-size', '18vh');
-            $("#day").css('color', 'red');
-            // $('.public').css('top', '-20%');
-        }
+    // --- 倒數計時器邏輯 ---
+    const targetDate = new Date('2026-04-25T00:00:00');
+    const now = new Date();
+    const targetDateMidnight = new Date(targetDate).setHours(0, 0, 0, 0);
+    const nowDateMidnight = new Date(now).setHours(0, 0, 0, 0);
+    const diffTime = targetDateMidnight - nowDateMidnight;
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    if (diffDays > 0) {
+        $('#countdown').text(diffDays + ' 天');
+    } else if (diffDays === 0) {
+        $('#title').text('就是今天！');
+        $('#countdown').text('沉著應戰，祝你考試順利').addClass('final-text');
+        $('#exam-date').hide();
+    } else {
+        $('#title').text('倒數結束');
+        $('#countdown').text('感謝您的使用').addClass('final-text');
+        $('#exam-date').hide();
     }
-    else
-    {
-        $("#h1").html('');
-        $(".h3_text").html('2026統測<br>已經過了喔!<br>待更新中...');
-        // $('.public').css('top', '-20%');
-    }
-}
-);
+
+    // --- 公告欄邏輯 ---
+    const announcementBoard = $('#announcement-board');
+    setTimeout(function() {
+        announcementBoard.addClass('hidden');
+    }, 30000);
+});
