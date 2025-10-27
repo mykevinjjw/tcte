@@ -1,0 +1,2 @@
+# Ignore directories that should not be committed
+test_funation_0_0_2/
