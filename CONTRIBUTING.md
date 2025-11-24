@@ -1,7 +1,7 @@
 ﻿# Contributing Guidelines / 貢獻指南
 
-Thank you for your interest in contributing to the 2026 TCTE Countdown Webpage!
-感謝您有興趣為 2026 統測倒數網頁做出貢獻！
+Thank you for your interest in contributing to the TCTE Countdown Webpage!
+感謝您有興趣為統測倒數網頁做出貢獻！
 
 ## How to Contribute / 如何貢獻
 1. Fork this project
