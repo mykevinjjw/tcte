@@ -88,7 +88,7 @@ $(document).ready(function () {
         targetDate.setHours(0, 0, 0, 0);
 
         // 3. 更新標題 (使用學年度)
-        $('#title').text(academicYear + ' 統測倒數');
+        $('#title').text('統測倒數');
 
         // 4. 檢查並顯示日期狀態 (狀態是跟著「學年度」)
         const status = examDateStatus[academicYear] || 0;
