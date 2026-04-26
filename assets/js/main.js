@@ -17,12 +17,21 @@
 $(document).ready(function () {
 
     // --- 測試用變數 ---
-    // 若要測試特定日期，請填寫年份、月份、日期。
-    // 若只填寫年份，則從該年1月1日開始計算。
+    // 若要測試特定日期與時間，請填寫下列欄位。
     // 若所有值皆為 null，則使用目前即時時間。
     const debugYear = null;    // 例如：2025
-    const debugMonth = null;   // 注意：月份為 1-12
-    const debugDay = null;     // 例如：28
+    const debugMonth = null;      // 注意：月份為 1-12
+    const debugDay = null;       // 例如：28
+    const debugHour = null;      // 0-23
+    const debugMinute = null;    // 0-59
+    const debugSecond = null;    // 0-59
+
+    // 計算測試時間與目前實際時間的差值 (offset)
+    let timeOffset = 0;
+    if (debugYear !== null && debugMonth !== null && debugDay !== null) {
+        const debugTime = new Date(debugYear, debugMonth - 1, debugDay, debugHour || 0, debugMinute || 0, debugSecond || 0);
+        timeOffset = debugTime.getTime() - new Date().getTime();
+    }
 
     // --- 日期狀態設定 ---
     // 用於標示統測日期是否為官方公告的正式日期
@@ -49,17 +58,11 @@ $(document).ready(function () {
     // --- 倒數計時器邏輯 ---
     let countdownInterval;
     function updateCountdown() {
-        let now;
-        if (debugYear !== null && debugMonth !== null && debugDay !== null) {
-            // 月份在 Date 物件中是 0-indexed，所以要 -1
-            now = new Date(debugYear, debugMonth - 1, debugDay);
-        } else if (debugYear !== null) {
-            // 若只設定年份，則維持從 1/1 開始
-            now = new Date(debugYear, 0, 1);
-        } else {
-            // 正常模式，使用即時時間
-            now = new Date();
+        let now = new Date();
+        if (timeOffset !== 0) {
+            now = new Date(now.getTime() + timeOffset);
         }
+        
         const currentCalendarYear = now.getFullYear();
 
         // 1. 用五月(考試月)作為學年度分界，決定當前應顯示的學年度
@@ -150,10 +153,8 @@ $(document).ready(function () {
     }
     // 立即執行一次
     updateCountdown();
-    // 如果不是測試模式，則設定每秒更新
-    if (!debugYear) {
-        countdownInterval = setInterval(updateCountdown, 1000);
-    }
+    // 設定每秒更新
+    countdownInterval = setInterval(updateCountdown, 1000);
     // --- 公告欄邏輯 ---
     const announcementBoard = $('#announcement-board');
     setTimeout(function () {
