@@ -247,6 +247,60 @@ body {
     margin: 0;
 }
 
+/* Birthday Easter Egg */
+.birthday-egg {
+    margin-top: 20px;
+    padding: 10px 20px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: #ffe082;
+    font-size: 1.2rem;
+    font-weight: 700;
+    text-align: center;
+    cursor: pointer;
+    user-select: none;
+    animation: birthday-glow 2s ease-in-out infinite;
+}
+
+@keyframes birthday-glow {
+    0%, 100% {
+        box-shadow: 0 0 8px rgba(255, 224, 130, 0.3);
+        transform: scale(1);
+    }
+    50% {
+        box-shadow: 0 0 22px rgba(255, 224, 130, 0.7);
+        transform: scale(1.03);
+    }
+}
+
+.birthday-confetti {
+    position: fixed;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+    z-index: 50;
+}
+
+.birthday-confetti span {
+    position: absolute;
+    top: -10%;
+    animation-name: birthday-fall;
+    animation-timing-function: linear;
+    animation-iteration-count: infinite;
+}
+
+@keyframes birthday-fall {
+    0% {
+        transform: translateY(0) rotate(0deg);
+        opacity: 1;
+    }
+    100% {
+        transform: translateY(120vh) rotate(540deg);
+        opacity: 0.6;
+    }
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
     .content {

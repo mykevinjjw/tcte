@@ -55,6 +55,54 @@ $(document).ready(function () {
     // --- 新增日期狀態提示訊息的 HTML 元素 ---
     $('#exam-date').after('<div id="date-status-message" style="font-size: 0.8rem; color: #ffc107; text-align: center; margin-top: 10px; font-weight: bold;"></div>');
 
+    // --- 彩蛋：管理者生日 (11/4) ---
+    const adminBirthday = { month: 11, day: 4 };
+    let birthdayShown = false;
+    function updateBirthdayEgg(now) {
+        const isBirthday = (now.getMonth() + 1) === adminBirthday.month && now.getDate() === adminBirthday.day;
+        if (isBirthday === birthdayShown) {
+            return;
+        }
+        birthdayShown = isBirthday;
+
+        if (!isBirthday) {
+            $('#birthday-egg, #birthday-confetti').remove();
+            return;
+        }
+
+        $('#date-status-message').after(
+            '<div id="birthday-egg" class="birthday-egg" title="點我放彩帶！">🎂 今天是管理者的生日，祝生日快樂！ 🎉</div>'
+        );
+
+        const confetti = $('<div id="birthday-confetti" class="birthday-confetti"></div>');
+        const pieces = ['🎉', '🎊', '🎈', '🎂', '✨', '🎁'];
+        for (let i = 0; i < 24; i++) {
+            $('<span></span>')
+                .text(pieces[i % pieces.length])
+                .css({
+                    'left': Math.random() * 100 + '%',
+                    'animation-delay': (Math.random() * 8) + 's',
+                    'animation-duration': (6 + Math.random() * 6) + 's',
+                    'font-size': (1 + Math.random() * 1.2) + 'rem'
+                })
+                .appendTo(confetti);
+        }
+        $('body').append(confetti);
+
+        // 點擊祝福文字再噴一次彩帶
+        $('#birthday-egg').on('click', function () {
+            confetti.find('span').each(function () {
+                const piece = $(this);
+                piece.css('animation', 'none');
+                piece[0].offsetHeight; // 強制重繪以重新啟動動畫
+                piece.css({
+                    'animation': '',
+                    'animation-delay': (Math.random() * 1.5) + 's'
+                });
+            });
+        });
+    }
+
     // --- 倒數計時器邏輯 ---
     let countdownInterval;
     function updateCountdown() {
@@ -62,7 +110,9 @@ $(document).ready(function () {
         if (timeOffset !== 0) {
             now = new Date(now.getTime() + timeOffset);
         }
-        
+
+        updateBirthdayEgg(now);
+
         const currentCalendarYear = now.getFullYear();
 
         // 1. 用五月(考試月)作為學年度分界，決定當前應顯示的學年度
