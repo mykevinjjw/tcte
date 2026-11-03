@@ -14,7 +14,7 @@
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
-// --- 生日限定小遊戲：幼兒園照顧大作戰 (只在 11/4 由生日彩蛋開啟) ---
+// --- 生日限定小遊戲：幼兒園照顧大作戰 (11/3~11/4 由生日彩蛋開啟) ---
 (function ($) {
 
     const GAME_SECONDS = 60;
@@ -276,7 +276,7 @@
         const best = readBest();
         $('#bday-overlay').html(
             '<div class="bday-overlay-box">' +
-            '<p class="bday-overlay-big">🎉 今天是避雷針的生日！</p>' +
+            '<p class="bday-overlay-big">🎉 11/4 是避雷針的生日！</p>' +
             '<p>身為未來的幼保老師，今天要獨自照顧整班小朋友！</p>' +
             '<ul class="bday-rules">' +
             needs.map(function (need) {
@@ -498,7 +498,7 @@
         $('#bday-game').removeClass('open');
     }
 
-    // --- 頁面旁固定的排行榜 (生日當天由 main.js 開啟) ---
+    // --- 頁面旁固定的排行榜 (開放期間由 main.js 開啟) ---
     const PANEL_REFRESH_MS = 30000;
     let panelTimer = null;
     let panelHighlight = null;

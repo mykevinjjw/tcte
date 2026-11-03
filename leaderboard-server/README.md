@@ -10,7 +10,7 @@
 | POST | `/scores` | 上傳 `{"name", "score"}`，回傳 `{"rank"}` |
 | GET | `/health` | 健康檢查 |
 
-伺服器的防護：名字 1~12 字、分數 0~1500、每個 IP 每分鐘最多上傳 5 次、只有台灣時間 11/4 能上傳（`LB_BIRTHDAY_ONLY=0` 可關閉）、只接受 `LB_ALLOWED_ORIGINS` 列出的網站呼叫。
+伺服器的防護：名字 1~12 字、分數 0~1500、每個 IP 每分鐘最多上傳 5 次、只有 `LB_OPEN_DATES` 列出的日期（台灣時間，預設 `11-03,11-04`）能上傳（`LB_BIRTHDAY_ONLY=0` 可關閉）、只接受 `LB_ALLOWED_ORIGINS` 列出的網站呼叫。
 
 ## 部署步驟（Ubuntu / Oracle Linux）
 

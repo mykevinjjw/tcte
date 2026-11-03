@@ -11,6 +11,7 @@ Environment=LB_PORT=8787
 Environment=LB_DB=/opt/tcte-leaderboard/scores.db
 Environment=LB_ALLOWED_ORIGINS=https://mykevinjjw.github.io
 Environment=LB_BIRTHDAY_ONLY=1
+Environment=LB_OPEN_DATES=11-03,11-04
 ExecStart=/usr/bin/python3 /opt/tcte-leaderboard/server.py
 Restart=on-failure
 NoNewPrivileges=true

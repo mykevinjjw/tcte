@@ -36,9 +36,10 @@ HOST = os.environ.get('LB_HOST', '127.0.0.1')  # 只聽本機，由 Caddy 反向
 PORT = int(os.environ.get('LB_PORT', '8787'))
 DB_PATH = os.environ.get('LB_DB', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'scores.db'))
 ALLOWED_ORIGINS = [o.strip() for o in os.environ.get('LB_ALLOWED_ORIGINS', 'https://mykevinjjw.github.io').split(',') if o.strip()]
-BIRTHDAY_ONLY = os.environ.get('LB_BIRTHDAY_ONLY', '1') == '1'  # 1：只有 11/4 (台灣時間) 能上傳分數
+BIRTHDAY_ONLY = os.environ.get('LB_BIRTHDAY_ONLY', '1') == '1'  # 1：只有開放日期 (台灣時間) 能上傳分數
+# 開放上傳的日期 (月-日，逗號分隔)，預設 11/3 提前開放到 11/4 生日當天
+OPEN_DATES = [tuple(int(x) for x in d.split('-')) for d in os.environ.get('LB_OPEN_DATES', '11-03,11-04').split(',') if d.strip()]
 
-BIRTHDAY = (11, 4)
 TAIPEI = timezone(timedelta(hours=8))
 MAX_NAME_LENGTH = 12
 MAX_SCORE = 1500  # 60 秒內正常玩不可能超過的分數
@@ -65,9 +66,9 @@ def init_db():
         conn.execute('CREATE INDEX IF NOT EXISTS idx_scores_rank ON scores (score DESC, id)')
 
 
-def is_birthday():
+def is_open_date():
     now = datetime.now(TAIPEI)
-    return (now.month, now.day) == BIRTHDAY
+    return (now.month, now.day) in OPEN_DATES
 
 
 def clean_name(value):
@@ -155,8 +156,8 @@ class Handler(BaseHTTPRequestHandler):
         if urlparse(self.path).path != '/scores':
             self.send_json(404, {'error': '找不到這個網址'})
             return
-        if BIRTHDAY_ONLY and not is_birthday():
-            self.send_json(403, {'error': '只有 11/4 生日當天才能上傳分數喔'})
+        if BIRTHDAY_ONLY and not is_open_date():
+            self.send_json(403, {'error': '現在不是開放上傳的時間喔'})
             return
 
         try:

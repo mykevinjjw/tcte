@@ -57,16 +57,24 @@ $(document).ready(function () {
 
     // --- 彩蛋：管理者生日 (11/4) ---
     const adminBirthday = { month: 11, day: 4 };
-    let birthdayShown = false;
+    const birthdayOpenFrom = { month: 11, day: 3 }; // 提前開放小遊戲與排行榜的日期 (同月)
+    let birthdayMode = '';
     function updateBirthdayEgg(now) {
-        const isBirthday = (now.getMonth() + 1) === adminBirthday.month && now.getDate() === adminBirthday.day;
-        if (isBirthday === birthdayShown) {
+        const month = now.getMonth() + 1;
+        const day = now.getDate();
+        let mode = '';
+        if (month === adminBirthday.month && day === adminBirthday.day) {
+            mode = 'birthday';
+        } else if (month === birthdayOpenFrom.month && day >= birthdayOpenFrom.day && day < adminBirthday.day) {
+            mode = 'early';
+        }
+        if (mode === birthdayMode) {
             return;
         }
-        birthdayShown = isBirthday;
+        birthdayMode = mode;
 
-        if (!isBirthday) {
-            $('#birthday-egg, #birthday-confetti').remove();
+        $('#birthday-egg, #birthday-confetti').remove();
+        if (!mode) {
             if (typeof window.hideBirthdayLeaderboard === 'function') {
                 window.hideBirthdayLeaderboard();
             }
@@ -79,7 +87,8 @@ $(document).ready(function () {
         }
 
         $('#date-status-message').after(
-            '<div id="birthday-egg" class="birthday-egg" title="點我放彩帶！">🎂 今天是避雷針的生日，祝生日快樂！ 🎉' +
+            '<div id="birthday-egg" class="birthday-egg" title="點我放彩帶！">' +
+            (mode === 'birthday' ? '🎂 今天是避雷針的生日，祝生日快樂！ 🎉' : '🎂 11/4 是避雷針的生日，小遊戲搶先開放！ 🎉') +
             '<button type="button" class="birthday-game-btn">🎮 生日限定小遊戲</button></div>'
         );
 
