@@ -71,7 +71,7 @@ $(document).ready(function () {
         }
 
         $('#date-status-message').after(
-            '<div id="birthday-egg" class="birthday-egg" title="點我放彩帶！">🎂 今天是管理者的生日，祝生日快樂！ 🎉</div>'
+            '<div id="birthday-egg" class="birthday-egg" title="點我放彩帶！">🎂 今天是避雷針的生日，祝生日快樂！ 🎉</div>'
         );
 
         const confetti = $('<div id="birthday-confetti" class="birthday-confetti"></div>');
