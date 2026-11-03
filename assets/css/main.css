@@ -510,6 +510,12 @@ body {
     transform: translateY(-3px);
 }
 
+.bday-icon {
+    width: 1em;
+    height: 1em;
+    vertical-align: -0.125em;
+}
+
 .bday-tool-icon {
     font-size: 1.6rem;
 }

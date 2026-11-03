@@ -28,12 +28,22 @@
     const LEADERBOARD_URL = 'https://tcte-lb.kevinjja.dpdns.org';
     const LEADERBOARD_SIZE = 10;
 
-    // 小朋友的需求與對應的照顧工具
+    // emoji 沒有尿布，自己畫一個 (大小跟 emoji 一樣是 1em)
+    const DIAPER_ICON =
+        '<svg class="bday-icon" viewBox="0 0 64 64" aria-hidden="true">' +
+        '<path d="M5 12 H59 V22 C59 30 52 33 46 38 C41 42 40 52 32 52 C24 52 23 42 18 38 C12 33 5 30 5 22 Z"' +
+        ' fill="#ffffff" stroke="#1e88e5" stroke-width="3.5" stroke-linejoin="round"/>' +
+        '<path d="M5 12 H59 V20 H5 Z" fill="#90caf9" stroke="#1e88e5" stroke-width="3.5" stroke-linejoin="round"/>' +
+        '<path d="M2 14 H12 V22 H2 Z M52 14 H62 V22 H52 Z" fill="#ffca28" stroke="#f57f17" stroke-width="2" stroke-linejoin="round"/>' +
+        '<path d="M32 27 C29 24 25 26 26.5 29.5 L32 35 L37.5 29.5 C39 26 35 24 32 27 Z" fill="#ec407a"/>' +
+        '</svg>';
+
+    // 小朋友的需求與對應的照顧工具 (tool 可以是 emoji 或 SVG)
     const needs = [
         { face: '🤤', text: '肚子餓', tool: '🍼', label: '奶瓶' },
         { face: '😭', text: '哭哭了', tool: '🧸', label: '抱抱熊' },
         { face: '🥱', text: '想睡覺', tool: '📖', label: '說故事' },
-        { face: '💩', text: '換尿布', tool: '🧷', label: '尿布' },
+        { face: '💩', text: '換尿布', tool: DIAPER_ICON, label: '尿布' },
         { face: '🤕', text: '跌倒了', tool: '🩹', label: 'OK 繃' }
     ];
     const kids = [
