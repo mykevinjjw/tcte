@@ -20,6 +20,7 @@
     const GAME_SECONDS = 60;
     const MAX_HEARTS = 3;
     const BEST_KEY = 'tcte-birthday-game-best';
+    const NAME_KEY = 'tcte-birthday-game-name';
 
     // --- 線上排行榜 (自架於 OCI A1，見 leaderboard-server/) ---
     // 留空時排行榜會自動隱藏；GitHub Pages 是 HTTPS，所以 API 也必須是 HTTPS
@@ -60,6 +61,23 @@
             localStorage.setItem(BEST_KEY, String(score));
         } catch (e) {
             // 無法儲存時就不記錄最高分
+        }
+    }
+
+    // 本裝置填過的暱稱，下次開啟就不用再填
+    function readName() {
+        try {
+            return localStorage.getItem(NAME_KEY) || '';
+        } catch (e) {
+            return '';
+        }
+    }
+
+    function saveName(name) {
+        try {
+            localStorage.setItem(NAME_KEY, name);
+        } catch (e) {
+            // 無法儲存時下次就重新輸入暱稱
         }
     }
 
@@ -139,7 +157,23 @@
         renderLeaderboard($('#bday-overlay .bday-lb'), highlight);
     }
 
-    // 開始按鈕：開場畫面要先填暱稱，之後「再玩一次」沿用同一個暱稱
+    // 開場畫面的暱稱區：已記住暱稱時只顯示名字與「更改」，否則顯示輸入框
+    function renderNameRow(editing) {
+        const row = $('#bday-overlay .bday-name-row');
+        if (!editing && playerName) {
+            row.html('<span class="bday-name-current">👩‍🏫 <b></b> 老師</span>' +
+                '<button type="button" class="bday-name-edit">更改暱稱</button>');
+            row.find('b').text(playerName);
+            return;
+        }
+        row.html('<input type="text" class="bday-name" maxlength="12" placeholder="輸入你的暱稱">');
+        row.find('.bday-name').val(playerName);
+        if (editing) {
+            row.find('.bday-name').trigger('focus').trigger('select');
+        }
+    }
+
+    // 開始按鈕：沒記住暱稱時要先填，之後「再玩一次」沿用同一個暱稱
     function handleStart() {
         const input = $('#bday-overlay .bday-name');
         if (input.length) {
@@ -150,6 +184,7 @@
                 return;
             }
             playerName = name;
+            saveName(name);
         } else if (!playerName) {
             showIntro();
             return;
@@ -246,6 +281,9 @@
             showLeaderboard(state ? state.lastSubmitted : null);
         });
         game.on('click', '.bday-submit-btn', uploadScore);
+        game.on('click', '.bday-name-edit', function () {
+            renderNameRow(true);
+        });
         game.on('keydown', '.bday-name', function (e) {
             if (e.key === 'Enter') {
                 handleStart();
@@ -285,14 +323,13 @@
             '</ul>' +
             '<p>沒有及時照顧，家長滿意度 ❤️ 就會下降，連續照顧對了還有加分！</p>' +
             (best > 0 ? '<p>🏆 最高分：' + best + '</p>' : '') +
-            '<div class="bday-submit">' +
-            '<input type="text" class="bday-name" maxlength="12" placeholder="輸入你的暱稱">' +
-            '</div>' +
+            '<div class="bday-submit bday-name-row"></div>' +
             '<p class="bday-submit-msg"></p>' +
             '<button type="button" class="bday-start">開始上課 ▶</button>' +
             (leaderboardEnabled() ? '<button type="button" class="bday-lb-btn">🏆 排行榜</button>' : '') +
             '</div>'
         ).css('display', 'flex');
+        renderNameRow(false);
     }
 
     function startGame() {
@@ -540,7 +577,7 @@
         buildModal();
         clearInterval(tickTimer);
         state = null;
-        playerName = '';  // 每次開啟都重新輸入暱稱
+        playerName = readName();
         $('.bday-kid').removeClass('needy shake').each(function (i) {
             $(this).find('.bday-kid-face').text(kids[i].face);
         }).find('.bday-kid-bubble').hide();
