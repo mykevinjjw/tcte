@@ -57,16 +57,24 @@ $(document).ready(function () {
 
     // --- 彩蛋：管理者生日 (11/4) ---
     const adminBirthday = { month: 11, day: 4 };
-    const birthdayOpenFrom = { month: 11, day: 3 }; // 提前開放小遊戲與排行榜的日期 (同月)
+    const birthdayOpenFrom = { month: 11, day: 3 }; // 連不上排行榜伺服器時，預設提前開放的日期 (同月)
     let birthdayMode = '';
     function updateBirthdayEgg(now) {
         const month = now.getMonth() + 1;
         const day = now.getDate();
+        const isBirthday = month === adminBirthday.month && day === adminBirthday.day;
+        // 小遊戲開放日期以管理後台的設定為準 (birthday-game.js 向伺服器查詢)，還沒查到時用預設日期
+        let gameOpen = typeof window.isBirthdayGameOpen === 'function' ? window.isBirthdayGameOpen() : null;
+        if (gameOpen === null) {
+            gameOpen = isBirthday ||
+                (month === birthdayOpenFrom.month && day >= birthdayOpenFrom.day && day < adminBirthday.day);
+        }
+
         let mode = '';
-        if (month === adminBirthday.month && day === adminBirthday.day) {
-            mode = 'birthday';
-        } else if (month === birthdayOpenFrom.month && day >= birthdayOpenFrom.day && day < adminBirthday.day) {
-            mode = 'early';
+        if (isBirthday) {
+            mode = gameOpen ? 'birthday' : 'birthday-closed';
+        } else if (gameOpen) {
+            mode = 'open';
         }
         if (mode === birthdayMode) {
             return;
@@ -74,22 +82,29 @@ $(document).ready(function () {
         birthdayMode = mode;
 
         $('#birthday-egg, #birthday-confetti').remove();
+        if (!gameOpen && typeof window.hideBirthdayLeaderboard === 'function') {
+            window.hideBirthdayLeaderboard();
+        }
         if (!mode) {
-            if (typeof window.hideBirthdayLeaderboard === 'function') {
-                window.hideBirthdayLeaderboard();
-            }
             return;
         }
 
         // 頁面旁固定的排行榜 (birthday-game.js)
-        if (typeof window.showBirthdayLeaderboard === 'function') {
+        if (gameOpen && typeof window.showBirthdayLeaderboard === 'function') {
             window.showBirthdayLeaderboard();
         }
 
+        const beforeBirthday = month < adminBirthday.month || (month === adminBirthday.month && day < adminBirthday.day);
+        let message = '🎂 避雷針的生日小遊戲開放中！ 🎉';
+        if (isBirthday) {
+            message = '🎂 今天是避雷針的生日，祝生日快樂！ 🎉';
+        } else if (beforeBirthday) {
+            message = '🎂 11/4 是避雷針的生日，小遊戲搶先開放！ 🎉';
+        }
         $('#date-status-message').after(
-            '<div id="birthday-egg" class="birthday-egg" title="點我放彩帶！">' +
-            (mode === 'birthday' ? '🎂 今天是避雷針的生日，祝生日快樂！ 🎉' : '🎂 11/4 是避雷針的生日，小遊戲搶先開放！ 🎉') +
-            '<button type="button" class="birthday-game-btn">🎮 生日限定小遊戲</button></div>'
+            '<div id="birthday-egg" class="birthday-egg" title="點我放彩帶！">' + message +
+            (gameOpen ? '<button type="button" class="birthday-game-btn">🎮 生日限定小遊戲</button>' : '') +
+            '</div>'
         );
 
         // 開啟生日限定小遊戲 (birthday-game.js)

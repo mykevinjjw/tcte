@@ -9,11 +9,12 @@
 | GET | `/scores?limit=10` | 取得前幾名 `[{"name", "score"}]` |
 | POST | `/names` | 登記暱稱 `{"name", "token"}`；已被其他裝置使用回 409 |
 | POST | `/scores` | 上傳 `{"name", "token", "score"}`，同暱稱只保留最高分，回傳 `{"rank", "best"}` |
-
-`token` 是每台裝置隨機產生的識別碼，暱稱（不分大小寫）屬於第一個登記它的裝置。
+| GET | `/status` | 現在是否開放 `{"open", "dates"}`（網站用它決定顯示小遊戲） |
 | GET | `/health` | 健康檢查 |
 
-伺服器的防護：名字 1~12 字、分數 0~1500、每個 IP 每分鐘最多 10 次（登記暱稱 + 上傳）、只有 `LB_OPEN_DATES` 列出的日期（台灣時間，預設 `11-03,11-04`）能上傳（`LB_BIRTHDAY_ONLY=0` 可關閉）、只接受 `LB_ALLOWED_ORIGINS` 列出的網站呼叫。
+`token` 是每台裝置隨機產生的識別碼，暱稱（不分大小寫）屬於第一個登記它的裝置。
+
+伺服器的防護：名字 1~12 字、分數 0~1500、每個 IP 每分鐘最多 10 次（登記暱稱 + 上傳）、只有開放日期（台灣時間，在管理後台設定；沒設定過時用 `LB_OPEN_DATES`，預設 `11-03,11-04`）能上傳（`LB_BIRTHDAY_ONLY=0` 可關閉）、只接受 `LB_ALLOWED_ORIGINS` 列出的網站呼叫。
 
 ## 部署步驟（Ubuntu / Oracle Linux）
 
@@ -55,11 +56,37 @@ GitHub Pages 是 HTTPS，瀏覽器不允許它呼叫 HTTP 的 API，所以需要
 
 5. 確認 `https://你的網域/health` 回傳 `{"ok": true}` 後，把網域填進 `assets/js/birthday-game.js` 的 `LEADERBOARD_URL`。
 
+## 管理後台（admin.py）
+
+目前部署：`https://tcteback.kevinjja.dpdns.org`（`tcte-admin.service`，`127.0.0.1:8788`，nginx 設定 [nginx-tcteback.conf](nginx-tcteback.conf)）。和 API 共用同一個 `scores.db`，功能：
+
+- 排行榜：看全部玩家、改分數（留空 = 從排行榜移除但保留暱稱）、解除綁定裝置（換手機時用）、刪除
+- 設定開放日期：存檔後網站與上傳限制立即生效
+- 上傳紀錄：登記暱稱、上傳分數、後台操作（最多保留 20000 筆）
+- 備份下載：`scores.db`、玩家 CSV、紀錄 CSV
+
+部署：
+
+```bash
+sudo cp admin.py /opt/tcte-leaderboard/ && sudo chown tcte:tcte /opt/tcte-leaderboard/admin.py
+# 設定帳號密碼 (只有 root 能讀)
+read -rs PW && H=$(printf '%s
+' "$PW" | python3 admin.py hash-password) && unset PW
+printf 'ADMIN_USER=admin
+ADMIN_PASSWORD_HASH=%s
+' "$H" | sudo tee /etc/tcte-admin.env >/dev/null && sudo chmod 600 /etc/tcte-admin.env
+sudo cp tcte-admin.service /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl enable --now tcte-admin
+sudo cp nginx-tcteback.conf /etc/nginx/conf.d/tcteback.conf && sudo systemctl reload nginx
+sudo certbot --nginx -d tcteback.kevinjja.dpdns.org --redirect
+```
+
+A1 上第一次部署時產生的密碼存在 `/root/tcte-admin-password.txt`；改密碼就重新產生 `/etc/tcte-admin.env` 再 `sudo systemctl restart tcte-admin`。登入失敗 10 分鐘內 5 次會暫時鎖定該 IP，登入 12 小時後失效。
+
 ## 常用操作
 
 ```bash
 # 看紀錄
-journalctl -u tcte-leaderboard -f
+journalctl -u tcte-leaderboard -u tcte-admin -f
 # 刪掉不當名字 (先停服務或直接用 sqlite3 操作皆可)
 sudo -u tcte sqlite3 /opt/tcte-leaderboard/scores.db "DELETE FROM players WHERE name = '不當名字';"
 # 備份

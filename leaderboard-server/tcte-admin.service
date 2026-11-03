@@ -1,0 +1,24 @@
+[Unit]
+Description=TCTE Countdown birthday game admin panel
+After=network.target tcte-leaderboard.service
+
+[Service]
+User=tcte
+Group=tcte
+WorkingDirectory=/opt/tcte-leaderboard
+Environment=ADMIN_HOST=127.0.0.1
+Environment=ADMIN_PORT=8788
+Environment=LB_DB=/opt/tcte-leaderboard/scores.db
+Environment=LB_OPEN_DATES=11-03,11-04
+# ADMIN_USER 與 ADMIN_PASSWORD_HASH 放在只有 root 能讀的檔案 (python3 admin.py hash-password 產生)
+EnvironmentFile=/etc/tcte-admin.env
+ExecStart=/usr/bin/python3 /opt/tcte-leaderboard/admin.py
+Restart=on-failure
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/tcte-leaderboard
+
+[Install]
+WantedBy=multi-user.target

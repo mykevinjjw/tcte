@@ -136,6 +136,27 @@
         });
     }
 
+    // --- 伺服器上的開放狀態 (開放日期由管理後台設定) ---
+    const STATUS_REFRESH_MS = 60000;
+    let serverOpen = null; // null：還沒查到，main.js 會改用預設日期
+
+    function refreshStatus() {
+        if (!leaderboardEnabled()) {
+            return;
+        }
+        leaderboardRequest('/status').then(function (status) {
+            serverOpen = status.open === true;
+        }).catch(function () {
+            // 查不到就維持上一次的結果
+        });
+    }
+
+    window.isBirthdayGameOpen = function () {
+        return serverOpen;
+    };
+    refreshStatus();
+    setInterval(refreshStatus, STATUS_REFRESH_MS);
+
     function fetchTopScores() {
         return leaderboardRequest('/scores?limit=' + LEADERBOARD_SIZE);
     }

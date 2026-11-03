@@ -20,9 +20,11 @@
 GET  /scores?limit=10               -> [{"name": "...", "score": 123}, ...]
 POST /names  {name, token}          -> {"ok": true}；暱稱已被其他裝置使用時回 409
 POST /scores {name, token, score}   -> {"rank": 3, "best": 123}；同一個暱稱只保留最高分
+GET  /status                        -> {"open": true, "dates": ["11-03", "11-04"]}；網站用來決定要不要開放小遊戲
 GET  /health                        -> {"ok": true}
 
 token 是每台裝置隨機產生的識別碼，暱稱屬於第一個登記它的裝置。
+開放日期存在 settings 表 (管理後台 admin.py 可以修改)，登記暱稱與上傳分數會記在 events 表。
 """
 import json
 import os
@@ -41,8 +43,9 @@ PORT = int(os.environ.get('LB_PORT', '8787'))
 DB_PATH = os.environ.get('LB_DB', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'scores.db'))
 ALLOWED_ORIGINS = [o.strip() for o in os.environ.get('LB_ALLOWED_ORIGINS', 'https://mykevinjjw.github.io').split(',') if o.strip()]
 BIRTHDAY_ONLY = os.environ.get('LB_BIRTHDAY_ONLY', '1') == '1'  # 1：只有開放日期 (台灣時間) 能上傳分數
-# 開放上傳的日期 (月-日，逗號分隔)，預設 11/3 提前開放到 11/4 生日當天
-OPEN_DATES = [tuple(int(x) for x in d.split('-')) for d in os.environ.get('LB_OPEN_DATES', '11-03,11-04').split(',') if d.strip()]
+# 開放上傳的日期 (月-日，逗號分隔)；管理後台設定過就以後台為準，這裡只是預設值
+DEFAULT_OPEN_DATES = os.environ.get('LB_OPEN_DATES', '11-03,11-04')
+MAX_EVENTS = 20000  # events 表最多保留的筆數
 
 TAIPEI = timezone(timedelta(hours=8))
 MAX_NAME_LENGTH = 12
@@ -62,9 +65,47 @@ def now_text():
     return datetime.now(TAIPEI).isoformat(timespec='seconds')
 
 
+def parse_dates(text):
+    """把 '11-03,11-04' 轉成 [(11, 3), (11, 4)]，格式不對就回傳 None"""
+    dates = []
+    for part in text.split(','):
+        part = part.strip()
+        if not part:
+            continue
+        match = re.match(r'^(\d{1,2})-(\d{1,2})$', part)
+        if not match:
+            return None
+        month, day = int(match.group(1)), int(match.group(2))
+        try:
+            datetime(2024, month, day)  # 2024 是閏年，2/29 也算合法
+        except ValueError:
+            return None
+        if (month, day) not in dates:
+            dates.append((month, day))
+    return sorted(dates)
+
+
+def get_open_dates(conn):
+    row = conn.execute("SELECT value FROM settings WHERE key = 'open_dates'").fetchone()
+    dates = parse_dates(row[0]) if row else None
+    return dates if dates is not None else (parse_dates(DEFAULT_OPEN_DATES) or [])
+
+
 def init_db():
     with sqlite3.connect(DB_PATH) as conn:
         conn.execute('PRAGMA journal_mode=WAL')
+        conn.execute('CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)')
+        conn.execute(
+            'CREATE TABLE IF NOT EXISTS events ('
+            ' id INTEGER PRIMARY KEY AUTOINCREMENT,'
+            ' at TEXT NOT NULL,'
+            ' ip TEXT NOT NULL,'
+            ' action TEXT NOT NULL,'  # claim：登記暱稱、score：上傳分數
+            ' name TEXT NOT NULL,'
+            ' score INTEGER,'
+            ' status INTEGER NOT NULL,'
+            ' note TEXT)'
+        )
         # 一個暱稱一列；score 為 NULL 表示已登記暱稱但還沒上傳過分數
         conn.execute(
             'CREATE TABLE IF NOT EXISTS players ('
@@ -89,9 +130,19 @@ def init_db():
             conn.execute('ALTER TABLE scores RENAME TO scores_legacy')
 
 
-def is_open_date():
+def is_open_date(conn):
+    if not BIRTHDAY_ONLY:
+        return True
     now = datetime.now(TAIPEI)
-    return (now.month, now.day) in OPEN_DATES
+    return (now.month, now.day) in get_open_dates(conn)
+
+
+def log_event(conn, ip, action, name, score, status, note=None):
+    conn.execute(
+        'INSERT INTO events (at, ip, action, name, score, status, note) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        (now_text(), ip, action, name, score, status, note)
+    )
+    conn.execute('DELETE FROM events WHERE id <= (SELECT MAX(id) FROM events) - ?', (MAX_EVENTS,))
 
 
 def clean_name(value):
@@ -165,6 +216,12 @@ class Handler(BaseHTTPRequestHandler):
         if url.path == '/health':
             self.send_json(200, {'ok': True})
             return
+        if url.path == '/status':
+            with sqlite3.connect(DB_PATH) as conn:
+                dates = get_open_dates(conn)
+                is_open = is_open_date(conn)
+            self.send_json(200, {'open': is_open, 'dates': ['%02d-%02d' % d for d in dates]})
+            return
         if url.path != '/scores':
             self.send_json(404, {'error': '找不到這個網址'})
             return
@@ -200,7 +257,9 @@ class Handler(BaseHTTPRequestHandler):
         if path not in ('/names', '/scores'):
             self.send_json(404, {'error': '找不到這個網址'})
             return
-        if BIRTHDAY_ONLY and not is_open_date():
+        with sqlite3.connect(DB_PATH) as conn:
+            is_open = is_open_date(conn)
+        if not is_open:
             self.send_json(403, {'error': '現在不是開放上傳的時間喔'})
             return
 
@@ -223,7 +282,9 @@ class Handler(BaseHTTPRequestHandler):
             if isinstance(score, bool) or not isinstance(score, int) or not 0 <= score <= MAX_SCORE:
                 self.send_json(400, {'error': '分數不正確'})
                 return
-        if not allow_post(self.client_ip()):
+        ip = self.client_ip()
+        action = 'claim' if path == '/names' else 'score'
+        if not allow_post(ip):
             self.send_json(429, {'error': '太頻繁了，休息一下再試'})
             return
 
@@ -238,6 +299,7 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 player_id, owner, best = row
                 if owner is not None and owner != token:
+                    log_event(conn, ip, action, name, score, 409, '暱稱屬於其他裝置')
                     self.send_json(409, {'error': '這個暱稱已經有人用了，換一個吧'})
                     return
                 if owner is None:
@@ -250,9 +312,11 @@ class Handler(BaseHTTPRequestHandler):
                     best = score
 
             if path == '/names':
+                log_event(conn, ip, action, name, None, 200)
                 self.send_json(200, {'ok': True})
                 return
             higher = conn.execute('SELECT COUNT(*) FROM players WHERE score > ?', (best,)).fetchone()[0]
+            log_event(conn, ip, action, name, score, 201, '最高分 %d，第 %d 名' % (best, higher + 1))
         self.send_json(201, {'rank': higher + 1, 'best': best})
 
     def log_message(self, fmt, *args):
