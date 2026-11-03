@@ -222,6 +222,20 @@ class Handler(BaseHTTPRequestHandler):
                 is_open = is_open_date(conn)
             self.send_json(200, {'open': is_open, 'dates': ['%02d-%02d' % d for d in dates]})
             return
+        if url.path == '/best':
+            # 某個暱稱目前在伺服器上的最高分 (管理後台可能改過)，沒有分數時 best 為 null
+            name = clean_name(parse_qs(url.query).get('name', [''])[0])
+            if not name:
+                self.send_json(400, {'error': '暱稱不正確'})
+                return
+            with sqlite3.connect(DB_PATH) as conn:
+                row = conn.execute('SELECT score FROM players WHERE name = ?', (name,)).fetchone()
+                best = row[0] if row else None
+                rank = None
+                if best is not None:
+                    rank = conn.execute('SELECT COUNT(*) FROM players WHERE score > ?', (best,)).fetchone()[0] + 1
+            self.send_json(200, {'best': best, 'rank': rank})
+            return
         if url.path != '/scores':
             self.send_json(404, {'error': '找不到這個網址'})
             return

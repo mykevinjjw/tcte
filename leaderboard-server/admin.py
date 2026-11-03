@@ -208,6 +208,50 @@ header button { background: none; border-color: #90a4ae; color: #cfd8dc; padding
 '''
 
 
+# 每 5 秒在背景重新抓目前的頁面，替換有 data-live 的區塊；正在輸入或改了還沒儲存的區塊先不更新
+LIVE_JS = '''(function () {
+    var REFRESH_MS = 5000;
+    function editing(el) {
+        var active = document.activeElement;
+        if (active && el.contains(active) && /^(INPUT|SELECT|TEXTAREA)$/.test(active.tagName)) {
+            return true;
+        }
+        var inputs = el.querySelectorAll('input');
+        for (var i = 0; i < inputs.length; i++) {
+            if (inputs[i].value !== inputs[i].defaultValue) {
+                return true;
+            }
+        }
+        return false;
+    }
+    function refresh() {
+        var parts = document.querySelectorAll('[data-live]');
+        if (!parts.length || document.hidden) {
+            return;
+        }
+        fetch(location.href, { credentials: 'same-origin', cache: 'no-store' }).then(function (res) {
+            if (!res.ok || res.redirected) {
+                throw new Error('not available');
+            }
+            return res.text();
+        }).then(function (html) {
+            var doc = new DOMParser().parseFromString(html, 'text/html');
+            Array.prototype.forEach.call(parts, function (el) {
+                var fresh = doc.querySelector('[data-live="' + el.getAttribute('data-live') + '"]');
+                if (fresh && fresh.innerHTML !== el.innerHTML && !editing(el)) {
+                    el.innerHTML = fresh.innerHTML;
+                }
+            });
+        }).catch(function () {
+            // 登入過期或連不上時先不更新
+        });
+    }
+    setInterval(refresh, REFRESH_MS);
+    document.addEventListener('visibilitychange', refresh);
+})();
+'''
+
+
 def layout(title, body, session=None, active=''):
     nav = ''
     if session:
@@ -223,9 +267,9 @@ def layout(title, body, session=None, active=''):
         '<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width, initial-scale=1">'
         '<meta name="robots" content="noindex, nofollow">'
-        '<title>%s｜TCTE 管理後台</title><style>%s</style></head><body>'
+        '<title>%s｜TCTE 管理後台</title><style>%s</style>%s</head><body>'
         '<header><h1>🎂 TCTE 管理後台</h1>%s</header><main>%s</main></body></html>'
-    ) % (e(title), STYLE, nav, body)
+    ) % (e(title), STYLE, '<script src="/live.js" defer></script>' if session else '', nav, body)
 
 
 def flash_html(query):
@@ -268,7 +312,7 @@ def players_page(session, query):
     scored = sum(1 for p in players if p['score'] is not None)
     date_text = ','.join('%02d-%02d' % d for d in dates)
     stats = (
-        '<div class="stats" style="margin-bottom:16px">'
+        '<div class="stats" style="margin-bottom:16px" data-live="stats">'
         '<div class="stat"><b>%d</b><span>登記的暱稱</span></div>'
         '<div class="stat"><b>%d</b><span>有分數的玩家</span></div>'
         '<div class="stat"><b>%d</b><span>今天的上傳次數</span></div>'
@@ -314,7 +358,7 @@ def players_page(session, query):
             )
         )
     table = (
-        '<div class="card"><h2>排行榜 (共 %d 位)</h2><div class="table-wrap"><table>'
+        '<div class="card" data-live="players"><h2>排行榜 (共 %d 位，每 5 秒自動更新)</h2><div class="table-wrap"><table>'
         '<tr><th>名次</th><th>暱稱</th><th>分數</th><th>綁定裝置</th><th>登記時間</th><th>最後更新</th><th>操作</th></tr>'
         '%s</table></div>'
         '<p class="muted">「解除綁定」後，下一台使用這個暱稱的裝置會綁定它 (玩家換手機或清除瀏覽器資料時使用)。'
@@ -392,7 +436,8 @@ def events_page(session, query):
             next_query['name'] = name
         more = '<p><a class="button ghost" href="/events?%s">更早的紀錄 →</a></p>' % e(urlencode(next_query))
     table = (
-        '<div class="card"><h2>上傳紀錄 (最新在上，最多保留 %d 筆)</h2><div class="table-wrap"><table>'
+        '<div class="card" data-live="events"><h2>上傳紀錄 (最新在上，最多保留 %d 筆，每 5 秒自動更新)</h2>'
+        '<div class="table-wrap"><table>'
         '<tr><th>時間</th><th>IP</th><th>動作</th><th>暱稱</th><th>分數</th><th>結果</th><th>備註</th></tr>'
         '%s</table></div>%s</div>'
     ) % (lb.MAX_EVENTS, rows or '<tr><td colspan="7" class="muted">沒有紀錄</td></tr>', more)
@@ -446,7 +491,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header('X-Content-Type-Options', 'nosniff')
         self.send_header('Referrer-Policy', 'no-referrer')
         self.send_header('Content-Security-Policy',
-                         "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; "
+                         "default-src 'none'; script-src 'self'; connect-src 'self'; style-src 'unsafe-inline'; form-action 'self'; "
                          "frame-ancestors 'none'; base-uri 'none'")
         for key, value in (headers or {}).items():
             self.send_header(key, value)
@@ -481,6 +526,9 @@ class Handler(BaseHTTPRequestHandler):
         query = parse_qs(url.query)
         session = get_session(self.session_id())
 
+        if url.path == '/live.js':
+            self.send_body(200, LIVE_JS, 'text/javascript; charset=utf-8')
+            return
         if url.path == '/login':
             if session:
                 self.redirect('/')

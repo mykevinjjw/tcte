@@ -179,6 +179,25 @@
         });
     }
 
+    // 以伺服器上的最高分為準 (管理後台可能改過或刪除)，同步回本機並更新畫面上的「最高分」
+    function syncBest() {
+        if (!leaderboardEnabled() || !playerName) {
+            return;
+        }
+        const name = playerName;
+        leaderboardRequest('/best?name=' + encodeURIComponent(name)).then(function (result) {
+            if (name !== playerName) {
+                return;
+            }
+            const best = result.best || 0;
+            saveBest(best);
+            // 遊戲結果畫面由上傳結果更新，這裡只更新開場畫面
+            $('#bday-overlay .bday-best.intro').text(best > 0 ? '🏆 最高分：' + best : '').toggle(best > 0);
+        }).catch(function () {
+            // 連不上時沿用本機紀錄
+        });
+    }
+
     function renderLeaderboard(container, highlight) {
         // 定時刷新時保留舊的名單，避免閃爍
         if (container.is(':empty')) {
@@ -274,6 +293,7 @@
         claimName(name).then(function () {
             playerName = name;
             saveName(name);
+            syncBest();
             startGame();
         }).catch(function (err) {
             msg.text(err instanceof TypeError ? '連不上排行榜，請稍後再試' : err.message);
@@ -301,6 +321,12 @@
             state.lastSubmitted = { name: name, score: result.best };
             panelHighlight = state.lastSubmitted;
             refreshPanel();
+            saveBest(result.best);
+            let bestText = '🏆 最高分：' + result.best;
+            if (result.best === score && score > state.previousBest) {
+                bestText = '🏆 新紀錄！';
+            }
+            $('#bday-overlay .bday-best').text(bestText);
             msg.addClass('ok').text(result.best > score ?
                 '上傳成功！最佳成績 ' + result.best + ' 分，第 ' + result.rank + ' 名' :
                 '上傳成功！你是第 ' + result.rank + ' 名 🎉');
@@ -416,7 +442,7 @@
             }).join('') +
             '</ul>' +
             '<p>沒有及時照顧，家長滿意度 ❤️ 就會下降，連續照顧對了還有加分！</p>' +
-            (best > 0 ? '<p>🏆 最高分：' + best + '</p>' : '') +
+            '<p class="bday-best intro"' + (best > 0 ? '>🏆 最高分：' + best : ' style="display:none">') + '</p>' +
             '<div class="bday-submit bday-name-row"></div>' +
             '<p class="bday-submit-msg"></p>' +
             '<button type="button" class="bday-start">開始上課 ▶</button>' +
@@ -424,6 +450,7 @@
             '</div>'
         ).css('display', 'flex');
         renderNameRow(false);
+        syncBest();
     }
 
     function startGame() {
@@ -592,6 +619,7 @@
 
         const best = readBest();
         const isNewBest = state.score > best;
+        state.previousBest = best;
         if (isNewBest) {
             saveBest(state.score);
         }
@@ -602,7 +630,7 @@
             '<p class="bday-player"></p>' +
             '<p class="bday-overlay-big">⭐ ' + state.score + ' 分</p>' +
             '<p class="bday-rating">' + getRating(state.score) + '</p>' +
-            '<p>' + (isNewBest ? '🏆 新紀錄！' : '🏆 最高分：' + best) + '</p>' +
+            '<p class="bday-best">' + (isNewBest ? '🏆 新紀錄！' : '🏆 最高分：' + best) + '</p>' +
             '<p>🎂 避雷針生日快樂！未來一定是超棒的幼保老師 💖</p>' +
             (leaderboardEnabled() && state.score > 0 ?
                 '<div class="bday-submit">' +
