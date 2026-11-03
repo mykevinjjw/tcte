@@ -631,7 +631,7 @@
             '<p class="bday-overlay-big">⭐ ' + state.score + ' 分</p>' +
             '<p class="bday-rating">' + getRating(state.score) + '</p>' +
             '<p class="bday-best">' + (isNewBest ? '🏆 新紀錄！' : '🏆 最高分：' + best) + '</p>' +
-            '<p>🎂 避雷針生日快樂！未來一定是超棒的幼保老師 💖</p>' +
+            '<p>🎂 祝避雷針生日快樂！ 💖</p>' +
             (leaderboardEnabled() && state.score > 0 ?
                 '<div class="bday-submit">' +
                 '<span class="bday-submit-msg"></span>' +
