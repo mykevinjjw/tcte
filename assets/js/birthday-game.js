@@ -21,6 +21,7 @@
     const MAX_HEARTS = 3;
     const BEST_KEY = 'tcte-birthday-game-best';
     const NAME_KEY = 'tcte-birthday-game-name';
+    const TOKEN_KEY = 'tcte-birthday-game-token';
 
     // --- 線上排行榜 (自架於 OCI A1，見 leaderboard-server/) ---
     // 留空時排行榜會自動隱藏；GitHub Pages 是 HTTPS，所以 API 也必須是 HTTPS
@@ -81,6 +82,32 @@
         }
     }
 
+    // 本裝置的隨機識別碼：暱稱屬於第一個登記它的裝置，其他裝置不能再用
+    let deviceToken = '';
+    function getDeviceToken() {
+        if (deviceToken) {
+            return deviceToken;
+        }
+        try {
+            deviceToken = localStorage.getItem(TOKEN_KEY) || '';
+        } catch (e) {
+            deviceToken = '';
+        }
+        if (!/^[0-9a-f]{32}$/.test(deviceToken)) {
+            const bytes = new Uint8Array(16);
+            crypto.getRandomValues(bytes);
+            deviceToken = Array.prototype.map.call(bytes, function (b) {
+                return ('0' + b.toString(16)).slice(-2);
+            }).join('');
+            try {
+                localStorage.setItem(TOKEN_KEY, deviceToken);
+            } catch (e) {
+                // 無法儲存時只在這次開啟頁面有效
+            }
+        }
+        return deviceToken;
+    }
+
     function leaderboardEnabled() {
         return LEADERBOARD_URL !== '';
     }
@@ -103,12 +130,21 @@
         return leaderboardRequest('/scores?limit=' + LEADERBOARD_SIZE);
     }
 
-    // 回傳 { rank: 名次 }
+    // 登記暱稱；已被其他裝置使用時會失敗並回傳錯誤訊息
+    function claimName(name) {
+        return leaderboardRequest('/names', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: name, token: getDeviceToken() })
+        });
+    }
+
+    // 同一個暱稱只保留最高分，回傳 { rank: 名次, best: 最高分 }
     function submitScore(name, score) {
         return leaderboardRequest('/scores', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name: name, score: score })
+            body: JSON.stringify({ name: name, score: score, token: getDeviceToken() })
         });
     }
 
@@ -123,15 +159,14 @@
                 return;
             }
             const list = $('<ol class="bday-lb-list"></ol>');
-            let highlighted = false;
             rows.forEach(function (row, i) {
                 const item = $('<li></li>');
                 $('<span class="bday-lb-rank"></span>').text(['🥇', '🥈', '🥉'][i] || (i + 1)).appendTo(item);
                 $('<span class="bday-lb-name"></span>').text(row.name).appendTo(item);
                 $('<span class="bday-lb-score"></span>').text(row.score).appendTo(item);
-                if (!highlighted && highlight && row.name === highlight.name && row.score === highlight.score) {
+                // 暱稱不分大小寫不會重複，用暱稱找自己那一列
+                if (highlight && row.name.toLowerCase() === highlight.name.toLowerCase()) {
                     item.addClass('me');
-                    highlighted = true;
                 }
                 list.append(item);
             });
@@ -173,23 +208,49 @@
         }
     }
 
-    // 開始按鈕：沒記住暱稱時要先填，之後「再玩一次」沿用同一個暱稱
+    // 開始按鈕：沒記住暱稱時要先填並檢查是否重複，之後「再玩一次」沿用同一個暱稱
+    let checkingName = false;
     function handleStart() {
         const input = $('#bday-overlay .bday-name');
-        if (input.length) {
-            const name = $.trim(input.val());
-            if (!name) {
-                $('#bday-overlay .bday-submit-msg').text('先輸入暱稱才能開始喔！');
-                input.focus();
-                return;
+        if (!input.length) {
+            if (playerName) {
+                startGame();
+            } else {
+                showIntro();
             }
-            playerName = name;
-            saveName(name);
-        } else if (!playerName) {
-            showIntro();
             return;
         }
-        startGame();
+
+        const msg = $('#bday-overlay .bday-submit-msg');
+        const name = $.trim(input.val());
+        if (!name) {
+            msg.text('先輸入暱稱才能開始喔！');
+            input.focus();
+            return;
+        }
+        if (!leaderboardEnabled()) {
+            playerName = name;
+            saveName(name);
+            startGame();
+            return;
+        }
+        if (checkingName) {
+            return;
+        }
+        checkingName = true;
+        $('#bday-overlay .bday-start').prop('disabled', true);
+        msg.removeClass('ok').text('檢查暱稱中…');
+        claimName(name).then(function () {
+            playerName = name;
+            saveName(name);
+            startGame();
+        }).catch(function (err) {
+            msg.text(err instanceof TypeError ? '連不上排行榜，請稍後再試' : err.message);
+            input.trigger('focus').trigger('select');
+        }).then(function () {
+            checkingName = false;
+            $('#bday-overlay .bday-start').prop('disabled', false);
+        });
     }
 
     // 遊戲結束時自動上傳分數，失敗時顯示「重新上傳」
@@ -206,10 +267,12 @@
         const name = playerName;
         const score = state.score;
         submitScore(name, score).then(function (result) {
-            state.lastSubmitted = { name: name, score: score };
+            state.lastSubmitted = { name: name, score: result.best };
             panelHighlight = state.lastSubmitted;
             refreshPanel();
-            msg.addClass('ok').text('上傳成功！你是第 ' + result.rank + ' 名 🎉');
+            msg.addClass('ok').text(result.best > score ?
+                '上傳成功！最佳成績 ' + result.best + ' 分，第 ' + result.rank + ' 名' :
+                '上傳成功！你是第 ' + result.rank + ' 名 🎉');
         }).catch(function (err) {
             state.submitted = false;
             button.show();

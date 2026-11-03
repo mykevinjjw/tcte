@@ -17,12 +17,16 @@
 #
 """生日小遊戲排行榜 API：只用 Python 標準庫 + SQLite，可直接跑在 OCI A1。
 
-GET  /scores?limit=10        -> [{"name": "...", "score": 123}, ...]
-POST /scores {name, score}   -> {"rank": 3}
-GET  /health                 -> {"ok": true}
+GET  /scores?limit=10               -> [{"name": "...", "score": 123}, ...]
+POST /names  {name, token}          -> {"ok": true}；暱稱已被其他裝置使用時回 409
+POST /scores {name, token, score}   -> {"rank": 3, "best": 123}；同一個暱稱只保留最高分
+GET  /health                        -> {"ok": true}
+
+token 是每台裝置隨機產生的識別碼，暱稱屬於第一個登記它的裝置。
 """
 import json
 import os
+import re
 import sqlite3
 import threading
 import time
@@ -45,25 +49,44 @@ MAX_NAME_LENGTH = 12
 MAX_SCORE = 1500  # 60 秒內正常玩不可能超過的分數
 MAX_LIMIT = 50
 MAX_BODY_BYTES = 1024
-RATE_LIMIT_COUNT = 5  # 每個 IP 每分鐘最多上傳次數
+RATE_LIMIT_COUNT = 10  # 每個 IP 每分鐘最多登記暱稱 + 上傳分數的次數
 RATE_LIMIT_WINDOW = 60
+TOKEN_PATTERN = re.compile(r'^[0-9a-f]{16,64}$')
 
 db_lock = threading.Lock()
 rate_lock = threading.Lock()
 recent_posts = {}
 
 
+def now_text():
+    return datetime.now(TAIPEI).isoformat(timespec='seconds')
+
+
 def init_db():
     with sqlite3.connect(DB_PATH) as conn:
         conn.execute('PRAGMA journal_mode=WAL')
+        # 一個暱稱一列；score 為 NULL 表示已登記暱稱但還沒上傳過分數
         conn.execute(
-            'CREATE TABLE IF NOT EXISTS scores ('
+            'CREATE TABLE IF NOT EXISTS players ('
             ' id INTEGER PRIMARY KEY AUTOINCREMENT,'
-            ' name TEXT NOT NULL,'
-            ' score INTEGER NOT NULL,'
-            ' created_at TEXT NOT NULL)'
+            ' name TEXT NOT NULL UNIQUE COLLATE NOCASE,'
+            ' token TEXT,'
+            ' score INTEGER,'
+            ' created_at TEXT NOT NULL,'
+            ' updated_at TEXT NOT NULL)'
         )
-        conn.execute('CREATE INDEX IF NOT EXISTS idx_scores_rank ON scores (score DESC, id)')
+        conn.execute('CREATE INDEX IF NOT EXISTS idx_players_rank ON players (score DESC, updated_at, id)')
+
+        # 舊版每次上傳一列的 scores 表：每個暱稱取最高分搬過來，原表改名保留備份
+        # (SQLite 搭配單一 MAX() 時，name 與 created_at 會取自最高分的那一列)
+        legacy = conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'scores'").fetchone()
+        if legacy:
+            conn.execute(
+                'INSERT OR IGNORE INTO players (name, token, score, created_at, updated_at)'
+                ' SELECT name, NULL, MAX(score), created_at, created_at'
+                ' FROM scores GROUP BY name COLLATE NOCASE'
+            )
+            conn.execute('ALTER TABLE scores RENAME TO scores_legacy')
 
 
 def is_open_date():
@@ -79,6 +102,12 @@ def clean_name(value):
     if not 1 <= len(name) <= MAX_NAME_LENGTH:
         return None
     return name
+
+
+def clean_token(value):
+    if isinstance(value, str) and TOKEN_PATTERN.match(value):
+        return value
+    return None
 
 
 def allow_post(ip):
@@ -148,53 +177,83 @@ class Handler(BaseHTTPRequestHandler):
 
         with sqlite3.connect(DB_PATH) as conn:
             rows = conn.execute(
-                'SELECT name, score FROM scores ORDER BY score DESC, id ASC LIMIT ?', (limit,)
+                'SELECT name, score FROM players WHERE score IS NOT NULL'
+                ' ORDER BY score DESC, updated_at ASC, id ASC LIMIT ?', (limit,)
             ).fetchall()
         self.send_json(200, [{'name': name, 'score': score} for name, score in rows])
 
+    def read_json(self):
+        try:
+            length = int(self.headers.get('Content-Length', '0'))
+        except ValueError:
+            length = 0
+        if not 0 < length <= MAX_BODY_BYTES:
+            return None
+        try:
+            data = json.loads(self.rfile.read(length).decode('utf-8'))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            return None
+        return data if isinstance(data, dict) else None
+
     def do_POST(self):
-        if urlparse(self.path).path != '/scores':
+        path = urlparse(self.path).path
+        if path not in ('/names', '/scores'):
             self.send_json(404, {'error': '找不到這個網址'})
             return
         if BIRTHDAY_ONLY and not is_open_date():
             self.send_json(403, {'error': '現在不是開放上傳的時間喔'})
             return
 
-        try:
-            length = int(self.headers.get('Content-Length', '0'))
-        except ValueError:
-            length = 0
-        if not 0 < length <= MAX_BODY_BYTES:
+        data = self.read_json()
+        if data is None:
             self.send_json(400, {'error': '資料格式不正確'})
             return
-        try:
-            data = json.loads(self.rfile.read(length).decode('utf-8'))
-        except (UnicodeDecodeError, json.JSONDecodeError):
-            self.send_json(400, {'error': '資料格式不正確'})
+        name = clean_name(data.get('name'))
+        token = clean_token(data.get('token'))
+        if name is None:
+            self.send_json(400, {'error': '暱稱要 1~%d 個字' % MAX_NAME_LENGTH})
             return
-        if not isinstance(data, dict):
-            self.send_json(400, {'error': '資料格式不正確'})
+        if token is None:
+            self.send_json(400, {'error': '請重新整理頁面後再試一次'})
             return
 
-        name = clean_name(data.get('name'))
-        score = data.get('score')
-        if name is None:
-            self.send_json(400, {'error': '名字要 1~%d 個字' % MAX_NAME_LENGTH})
-            return
-        if isinstance(score, bool) or not isinstance(score, int) or not 0 <= score <= MAX_SCORE:
-            self.send_json(400, {'error': '分數不正確'})
-            return
+        score = None
+        if path == '/scores':
+            score = data.get('score')
+            if isinstance(score, bool) or not isinstance(score, int) or not 0 <= score <= MAX_SCORE:
+                self.send_json(400, {'error': '分數不正確'})
+                return
         if not allow_post(self.client_ip()):
-            self.send_json(429, {'error': '上傳太頻繁了，休息一下再試'})
+            self.send_json(429, {'error': '太頻繁了，休息一下再試'})
             return
 
         with db_lock, sqlite3.connect(DB_PATH) as conn:
-            conn.execute(
-                'INSERT INTO scores (name, score, created_at) VALUES (?, ?, ?)',
-                (name, score, datetime.now(TAIPEI).isoformat(timespec='seconds'))
-            )
-            higher = conn.execute('SELECT COUNT(*) FROM scores WHERE score > ?', (score,)).fetchone()[0]
-        self.send_json(201, {'rank': higher + 1})
+            row = conn.execute('SELECT id, token, score FROM players WHERE name = ?', (name,)).fetchone()
+            if row is None:
+                conn.execute(
+                    'INSERT INTO players (name, token, score, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
+                    (name, token, score, now_text(), now_text())
+                )
+                best = score
+            else:
+                player_id, owner, best = row
+                if owner is not None and owner != token:
+                    self.send_json(409, {'error': '這個暱稱已經有人用了，換一個吧'})
+                    return
+                if owner is None:
+                    # 舊資料還沒有裝置識別碼，由第一個使用的裝置認領
+                    conn.execute('UPDATE players SET token = ? WHERE id = ?', (token, player_id))
+                if score is not None and (best is None or score > best):
+                    # 同一個暱稱只更新成更高的分數
+                    conn.execute('UPDATE players SET score = ?, updated_at = ? WHERE id = ?',
+                                 (score, now_text(), player_id))
+                    best = score
+
+            if path == '/names':
+                self.send_json(200, {'ok': True})
+                return
+            higher = conn.execute('SELECT COUNT(*) FROM players WHERE score > ?', (best,)).fetchone()[0]
+        self.send_json(201, {'rank': higher + 1, 'best': best})
 
     def log_message(self, fmt, *args):
         print('%s - %s' % (self.client_ip(), fmt % args), flush=True)

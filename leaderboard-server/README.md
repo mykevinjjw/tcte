@@ -7,10 +7,13 @@
 | 方法 | 路徑 | 說明 |
 |---|---|---|
 | GET | `/scores?limit=10` | 取得前幾名 `[{"name", "score"}]` |
-| POST | `/scores` | 上傳 `{"name", "score"}`，回傳 `{"rank"}` |
+| POST | `/names` | 登記暱稱 `{"name", "token"}`；已被其他裝置使用回 409 |
+| POST | `/scores` | 上傳 `{"name", "token", "score"}`，同暱稱只保留最高分，回傳 `{"rank", "best"}` |
+
+`token` 是每台裝置隨機產生的識別碼，暱稱（不分大小寫）屬於第一個登記它的裝置。
 | GET | `/health` | 健康檢查 |
 
-伺服器的防護：名字 1~12 字、分數 0~1500、每個 IP 每分鐘最多上傳 5 次、只有 `LB_OPEN_DATES` 列出的日期（台灣時間，預設 `11-03,11-04`）能上傳（`LB_BIRTHDAY_ONLY=0` 可關閉）、只接受 `LB_ALLOWED_ORIGINS` 列出的網站呼叫。
+伺服器的防護：名字 1~12 字、分數 0~1500、每個 IP 每分鐘最多 10 次（登記暱稱 + 上傳）、只有 `LB_OPEN_DATES` 列出的日期（台灣時間，預設 `11-03,11-04`）能上傳（`LB_BIRTHDAY_ONLY=0` 可關閉）、只接受 `LB_ALLOWED_ORIGINS` 列出的網站呼叫。
 
 ## 部署步驟（Ubuntu / Oracle Linux）
 
@@ -58,7 +61,7 @@ GitHub Pages 是 HTTPS，瀏覽器不允許它呼叫 HTTP 的 API，所以需要
 # 看紀錄
 journalctl -u tcte-leaderboard -f
 # 刪掉不當名字 (先停服務或直接用 sqlite3 操作皆可)
-sudo -u tcte sqlite3 /opt/tcte-leaderboard/scores.db "DELETE FROM scores WHERE id = 123;"
+sudo -u tcte sqlite3 /opt/tcte-leaderboard/scores.db "DELETE FROM players WHERE name = '不當名字';"
 # 備份
 sudo -u tcte sqlite3 /opt/tcte-leaderboard/scores.db ".backup /tmp/scores-backup.db"
 ```
