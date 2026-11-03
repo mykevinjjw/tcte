@@ -776,18 +776,24 @@ body {
     color: #ffe082;
 }
 
-/* 螢幕不夠寬時改放左下角，避免擋住倒數 */
-@media (max-width: 1100px) {
-    .bday-lb-panel {
-        top: auto;
-        bottom: 60px;
-        left: 16px;
-        width: 210px;
-        max-width: calc(100vw - 32px);
-        max-height: 50vh;
-        padding: 10px 14px;
-        transform: none;
-    }
+/* 旁邊放不下時由 JS 移進倒數卡片裡，跟著版面排列 */
+.bday-lb-panel.inline {
+    position: static;
+    width: auto;
+    max-width: 360px;
+    max-height: none;
+    margin: 20px auto 0;
+    padding: 10px 14px;
+    background: rgba(0, 0, 0, 0.15);
+    box-shadow: none;
+    backdrop-filter: none;
+    transform: none;
+}
+
+/* 頁面不能捲動，名單太長時在面板內捲動 */
+.bday-lb-panel.inline .bday-lb {
+    max-height: 22vh;
+    overflow-y: auto;
 }
 
 /* Responsive Design */

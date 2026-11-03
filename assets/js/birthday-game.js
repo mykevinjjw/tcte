@@ -603,11 +603,32 @@
     let panelTimer = null;
     let panelHighlight = null;
 
+    const PANEL_SIDE_GAP = 20; // 固定在頁面旁時，面板與倒數卡片之間至少要留的空間
+    let placeTimer = null;
+
     function refreshPanel() {
+        placePanel();
         const list = $('#bday-lb-panel .bday-lb');
         // 分頁在背景時不更新，切回來時馬上更新
         if (list.length && !document.hidden) {
             renderLeaderboard(list, panelHighlight);
+        }
+    }
+
+    // 旁邊放得下就固定在左側，放不下就移進倒數卡片裡 (生日橫幅下面)，避免擋住按鈕
+    function placePanel() {
+        const panel = $('#bday-lb-panel');
+        const content = $('.content');
+        if (!panel.length || !content.length) {
+            return;
+        }
+        // 面板固定在左側時右邊緣的位置 (left 20px + 寬度 230px + 左右內距 28px)
+        const sideRight = 20 + 230 + 28;
+        const side = content[0].getBoundingClientRect().left >= sideRight + PANEL_SIDE_GAP;
+        if (side && panel.hasClass('inline')) {
+            panel.removeClass('inline').appendTo('body');
+        } else if (!side && !panel.hasClass('inline')) {
+            panel.addClass('inline').appendTo(content);
         }
     }
 
@@ -625,14 +646,22 @@
             panel.toggleClass('collapsed');
         });
         $('body').append(panel);
+        placePanel();
         refreshPanel();
         panelTimer = setInterval(refreshPanel, PANEL_REFRESH_MS);
         $(document).on('visibilitychange.bdayPanel', refreshPanel);
+        // 視窗大小改變時，等版面穩定後再決定位置
+        $(window).on('resize.bdayPanel', function () {
+            clearTimeout(placeTimer);
+            placeTimer = setTimeout(placePanel, 150);
+        });
     };
 
     window.hideBirthdayLeaderboard = function () {
         clearInterval(panelTimer);
         $(document).off('visibilitychange.bdayPanel');
+        $(window).off('resize.bdayPanel');
+        clearTimeout(placeTimer);
         $('#bday-lb-panel').remove();
     };
 
