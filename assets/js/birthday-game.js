@@ -499,13 +499,14 @@
     }
 
     // --- 頁面旁固定的排行榜 (開放期間由 main.js 開啟) ---
-    const PANEL_REFRESH_MS = 30000;
+    const PANEL_REFRESH_MS = 5000;
     let panelTimer = null;
     let panelHighlight = null;
 
     function refreshPanel() {
         const list = $('#bday-lb-panel .bday-lb');
-        if (list.length) {
+        // 分頁在背景時不更新，切回來時馬上更新
+        if (list.length && !document.hidden) {
             renderLeaderboard(list, panelHighlight);
         }
     }
@@ -526,10 +527,12 @@
         $('body').append(panel);
         refreshPanel();
         panelTimer = setInterval(refreshPanel, PANEL_REFRESH_MS);
+        $(document).on('visibilitychange.bdayPanel', refreshPanel);
     };
 
     window.hideBirthdayLeaderboard = function () {
         clearInterval(panelTimer);
+        $(document).off('visibilitychange.bdayPanel');
         $('#bday-lb-panel').remove();
     };
 
