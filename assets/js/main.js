@@ -67,12 +67,29 @@ $(document).ready(function () {
 
         if (!isBirthday) {
             $('#birthday-egg, #birthday-confetti').remove();
+            if (typeof window.hideBirthdayLeaderboard === 'function') {
+                window.hideBirthdayLeaderboard();
+            }
             return;
         }
 
+        // 頁面旁固定的排行榜 (birthday-game.js)
+        if (typeof window.showBirthdayLeaderboard === 'function') {
+            window.showBirthdayLeaderboard();
+        }
+
         $('#date-status-message').after(
-            '<div id="birthday-egg" class="birthday-egg" title="點我放彩帶！">🎂 今天是避雷針的生日，祝生日快樂！ 🎉</div>'
+            '<div id="birthday-egg" class="birthday-egg" title="點我放彩帶！">🎂 今天是避雷針的生日，祝生日快樂！ 🎉' +
+            '<button type="button" class="birthday-game-btn">🎮 生日限定小遊戲</button></div>'
         );
+
+        // 開啟生日限定小遊戲 (birthday-game.js)
+        $('#birthday-egg .birthday-game-btn').on('click', function (e) {
+            e.stopPropagation();
+            if (typeof window.openBirthdayGame === 'function') {
+                window.openBirthdayGame();
+            }
+        });
 
         const confetti = $('<div id="birthday-confetti" class="birthday-confetti"></div>');
         const pieces = ['🎉', '🎊', '🎈', '🎂', '✨', '🎁'];

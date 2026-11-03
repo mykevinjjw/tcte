@@ -1,0 +1,22 @@
+[Unit]
+Description=TCTE Countdown birthday game leaderboard API
+After=network.target
+
+[Service]
+User=tcte
+Group=tcte
+WorkingDirectory=/opt/tcte-leaderboard
+Environment=LB_HOST=127.0.0.1
+Environment=LB_PORT=8787
+Environment=LB_DB=/opt/tcte-leaderboard/scores.db
+Environment=LB_ALLOWED_ORIGINS=https://mykevinjjw.github.io
+Environment=LB_BIRTHDAY_ONLY=1
+ExecStart=/usr/bin/python3 /opt/tcte-leaderboard/server.py
+Restart=on-failure
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/tcte-leaderboard
+
+[Install]
+WantedBy=multi-user.target

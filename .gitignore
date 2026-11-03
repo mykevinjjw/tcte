@@ -1,3 +1,4 @@
 # Ignore directories that should not be committed
 
 report.md
+leaderboard-server/scores.db*

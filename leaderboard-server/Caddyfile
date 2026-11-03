@@ -1,0 +1,4 @@
+# 把 lb.example.com 換成指到 OCI A1 公開 IP 的網域，Caddy 會自動申請 HTTPS 憑證
+lb.example.com {
+	reverse_proxy 127.0.0.1:8787
+}
