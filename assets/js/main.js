@@ -58,7 +58,7 @@ $(document).ready(function () {
     // --- 彩蛋：管理者生日 (11/4) ---
     const adminBirthday = { month: 11, day: 4 };
     const birthdayOpenFrom = { month: 11, day: 3 }; // 連不上排行榜伺服器時，預設提前開放的日期 (同月)
-    let birthdayMode = '';
+    let birthdayMode = null;
     function updateBirthdayEgg(now) {
         const month = now.getMonth() + 1;
         const day = now.getDate();
@@ -82,16 +82,12 @@ $(document).ready(function () {
         birthdayMode = mode;
 
         $('#birthday-egg, #birthday-confetti').remove();
-        if (!gameOpen && typeof window.hideBirthdayLeaderboard === 'function') {
-            window.hideBirthdayLeaderboard();
+        // 頁面旁固定的排行榜 (birthday-game.js)：遊戲關閉後也保留，只拿掉遊戲入口與祝福
+        if (typeof window.showBirthdayLeaderboard === 'function') {
+            window.showBirthdayLeaderboard(gameOpen);
         }
         if (!mode) {
             return;
-        }
-
-        // 頁面旁固定的排行榜 (birthday-game.js)
-        if (gameOpen && typeof window.showBirthdayLeaderboard === 'function') {
-            window.showBirthdayLeaderboard();
         }
 
         const beforeBirthday = month < adminBirthday.month || (month === adminBirthday.month && day < adminBirthday.day);

@@ -205,7 +205,8 @@
         }
         fetchTopScores().then(function (rows) {
             if (rows.length === 0) {
-                container.html('<p class="bday-lb-status">還沒有人上榜，快來搶第一！</p>');
+                container.html('<p class="bday-lb-status">' +
+                    (serverOpen === false ? '還沒有人上榜' : '還沒有人上榜，快來搶第一！') + '</p>');
                 return;
             }
             const list = $('<ol class="bday-lb-list"></ol>');
@@ -659,6 +660,7 @@
 
     // --- 頁面旁固定的排行榜 (開放期間由 main.js 開啟) ---
     const PANEL_REFRESH_MS = 5000;
+    const PANEL_CLOSED_REFRESH_MS = 60000; // 遊戲沒開放時，分數只有後台會改
     let panelTimer = null;
     let panelHighlight = null;
 
@@ -691,29 +693,35 @@
         }
     }
 
-    window.showBirthdayLeaderboard = function () {
-        if (!leaderboardEnabled() || $('#bday-lb-panel').length) {
+    // open：小遊戲是否開放中。沒開放時排行榜照樣顯示 (標上已結束)，只是不用那麼常更新
+    window.showBirthdayLeaderboard = function (open) {
+        if (!leaderboardEnabled()) {
             return;
         }
-        const panel = $(
-            '<aside id="bday-lb-panel" class="bday-lb-panel">' +
-            '<button type="button" class="bday-lb-panel-toggle">🏆 生日排行榜</button>' +
-            '<div class="bday-lb"></div>' +
-            '</aside>'
-        );
-        panel.on('click', '.bday-lb-panel-toggle', function () {
-            panel.toggleClass('collapsed');
-        });
-        $('body').append(panel);
-        placePanel();
-        refreshPanel();
-        panelTimer = setInterval(refreshPanel, PANEL_REFRESH_MS);
-        $(document).on('visibilitychange.bdayPanel', refreshPanel);
-        // 視窗大小改變時，等版面穩定後再決定位置
-        $(window).on('resize.bdayPanel', function () {
-            clearTimeout(placeTimer);
-            placeTimer = setTimeout(placePanel, 150);
-        });
+        let panel = $('#bday-lb-panel');
+        if (!panel.length) {
+            panel = $(
+                '<aside id="bday-lb-panel" class="bday-lb-panel">' +
+                '<button type="button" class="bday-lb-panel-toggle"></button>' +
+                '<div class="bday-lb"></div>' +
+                '</aside>'
+            );
+            panel.on('click', '.bday-lb-panel-toggle', function () {
+                panel.toggleClass('collapsed');
+            });
+            $('body').append(panel);
+            placePanel();
+            refreshPanel();
+            $(document).on('visibilitychange.bdayPanel', refreshPanel);
+            // 視窗大小改變時，等版面穩定後再決定位置
+            $(window).on('resize.bdayPanel', function () {
+                clearTimeout(placeTimer);
+                placeTimer = setTimeout(placePanel, 150);
+            });
+        }
+        panel.find('.bday-lb-panel-toggle').text(open ? '🏆 生日排行榜' : '🏆 生日排行榜 (已結束)');
+        clearInterval(panelTimer);
+        panelTimer = setInterval(refreshPanel, open ? PANEL_REFRESH_MS : PANEL_CLOSED_REFRESH_MS);
     };
 
     window.hideBirthdayLeaderboard = function () {
