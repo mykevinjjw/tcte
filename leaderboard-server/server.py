@@ -106,6 +106,10 @@ def init_db():
             ' status INTEGER NOT NULL,'
             ' note TEXT)'
         )
+        # 後來加的欄位：上傳的裝置識別碼，讓後台分辨同一個人用了哪幾台裝置
+        if 'token' not in [row[1] for row in conn.execute('PRAGMA table_info(events)')]:
+            conn.execute('ALTER TABLE events ADD COLUMN token TEXT')
+        conn.execute('CREATE INDEX IF NOT EXISTS idx_events_name ON events (name COLLATE NOCASE, id)')
         # 一個暱稱一列；score 為 NULL 表示已登記暱稱但還沒上傳過分數
         conn.execute(
             'CREATE TABLE IF NOT EXISTS players ('
@@ -137,10 +141,10 @@ def is_open_date(conn):
     return (now.month, now.day) in get_open_dates(conn)
 
 
-def log_event(conn, ip, action, name, score, status, note=None):
+def log_event(conn, ip, action, name, score, status, note=None, token=None):
     conn.execute(
-        'INSERT INTO events (at, ip, action, name, score, status, note) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        (now_text(), ip, action, name, score, status, note)
+        'INSERT INTO events (at, ip, action, name, score, status, note, token) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        (now_text(), ip, action, name, score, status, note, token)
     )
     conn.execute('DELETE FROM events WHERE id <= (SELECT MAX(id) FROM events) - ?', (MAX_EVENTS,))
 
@@ -313,7 +317,7 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 player_id, owner, best = row
                 if owner is not None and owner != token:
-                    log_event(conn, ip, action, name, score, 409, '暱稱屬於其他裝置')
+                    log_event(conn, ip, action, name, score, 409, '暱稱屬於其他裝置', token)
                     self.send_json(409, {'error': '這個暱稱已經有人用了，換一個吧'})
                     return
                 if owner is None:
@@ -326,11 +330,11 @@ class Handler(BaseHTTPRequestHandler):
                     best = score
 
             if path == '/names':
-                log_event(conn, ip, action, name, None, 200)
+                log_event(conn, ip, action, name, None, 200, token=token)
                 self.send_json(200, {'ok': True})
                 return
             higher = conn.execute('SELECT COUNT(*) FROM players WHERE score > ?', (best,)).fetchone()[0]
-            log_event(conn, ip, action, name, score, 201, '最高分 %d，第 %d 名' % (best, higher + 1))
+            log_event(conn, ip, action, name, score, 201, '最高分 %d，第 %d 名' % (best, higher + 1), token)
         self.send_json(201, {'rank': higher + 1, 'best': best})
 
     def log_message(self, fmt, *args):
