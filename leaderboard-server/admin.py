@@ -209,6 +209,9 @@ main { max-width: 1100px; margin: 0 auto; padding: 16px; }
 table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
 th, td { padding: 8px 6px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }
 th { color: var(--muted); font-weight: 500; }
+th a.sort { color: inherit; text-decoration: none; }
+th a.sort:hover { color: var(--text); text-decoration: underline; }
+th a.sort.on { color: var(--text); font-weight: 700; }
 td.actions { display: flex; gap: 6px; align-items: center; }
 td.actions form { display: flex; gap: 4px; margin: 0; }
 input[type=text], input[type=password], input[type=number] {
@@ -343,6 +346,57 @@ def login_page(error=''):
     return layout('登入', body)
 
 
+# 排行榜可排序的欄位：標題、第一次點的方向 (True = 由大到小)
+SORT_COLUMNS = {
+    'rank': ('名次', False),
+    'name': ('暱稱', False),
+    'score': ('最高分', True),
+    'plays': ('上傳次數', True),
+    'created': ('登記時間', False),
+    'last': ('最近遊玩', True),
+}
+
+
+def parse_sort(query):
+    key = query.get('sort', ['rank'])[0]
+    if key not in SORT_COLUMNS:
+        key = 'rank'
+    direction = query.get('dir', [''])[0]
+    desc = SORT_COLUMNS[key][1] if direction not in ('asc', 'desc') else direction == 'desc'
+    return key, desc
+
+
+def sort_players(players, ranks, plays, key, desc):
+    def value(p):
+        count, last = plays.get(p['name'].lower(), (0, None))
+        return {
+            'rank': ranks.get(p['id']),
+            'name': p['name'].lower(),
+            'score': p['score'],
+            'plays': count,
+            'created': p['created_at'],
+            'last': last,
+        }[key]
+
+    # 沒有值的 (未上傳、沒玩過) 不論方向都排在最後；同值時維持名次順序
+    present = [p for p in players if value(p) is not None]
+    missing = [p for p in players if value(p) is None]
+    present.sort(key=value, reverse=desc)
+    return present + missing
+
+
+def sort_header(key, current, desc):
+    label, default_desc = SORT_COLUMNS[key]
+    if key == current:
+        next_dir = 'asc' if desc else 'desc'
+        arrow = ' ▼' if desc else ' ▲'
+    else:
+        next_dir = 'desc' if default_desc else 'asc'
+        arrow = ''
+    return '<th><a class="sort%s" href="/?%s">%s%s</a></th>' % (
+        ' on' if key == current else '', e(urlencode({'sort': key, 'dir': next_dir})), e(label), arrow)
+
+
 def players_page(session, query):
     with db() as conn:
         dates = lb.get_open_dates(conn)
@@ -383,11 +437,20 @@ def players_page(session, query):
         '留空代表完全不開放。生日當天 (11/4) 的祝福橫幅不受影響。</p></div>'
     ) % (csrf_input(session), e(date_text))
 
+    # 同分同名次 (例如 1、2、2、4)，和網站上的排行榜一致
+    ranks = {}
+    for i, p in enumerate(players):
+        if p['score'] is None:
+            continue
+        prev = players[i - 1] if i else None
+        ranks[p['id']] = ranks[prev['id']] if prev and prev['score'] == p['score'] else i + 1
+
+    sort_key, sort_desc = parse_sort(query)
+    players = sort_players(players, ranks, plays, sort_key, sort_desc)
+
     rows = []
-    rank = 0
     for p in players:
-        if p['score'] is not None:
-            rank += 1
+        rank = ranks.get(p['id'])
         token = p['token']
         count, last_play = plays.get(p['name'].lower(), (0, None))
         rows.append(
@@ -398,7 +461,7 @@ def players_page(session, query):
             '%s'
             '<a class="button ghost" href="/players/delete?id=%d">刪除</a>'
             '</td></tr>' % (
-                rank if p['score'] is not None else '—',
+                rank if rank is not None else '—',
                 name_link(p['name']),
                 e(p['score']) if p['score'] is not None else '<span class="muted">未上傳</span>',
                 '<a href="/player?%s">%d 次</a>' % (e(urlencode({'name': p['name']})), count) if count else
@@ -416,12 +479,17 @@ def players_page(session, query):
         )
     table = (
         '<div class="card" data-live="players"><h2>排行榜 (共 %d 位，每 5 秒自動更新)</h2><div class="table-wrap"><table>'
-        '<tr><th>名次</th><th>暱稱</th><th>最高分</th><th>上傳次數</th><th>綁定裝置</th><th>登記時間</th><th>最近遊玩</th>'
-        '<th>操作</th></tr>'
+        '<tr>%s<th>綁定裝置</th>%s<th>操作</th></tr>'
         '%s</table></div>'
-        '<p class="muted">點暱稱或上傳次數可以看這個人的每一次上傳與分數歷程。「解除綁定」後，下一台使用這個暱稱的裝置會綁定它 (玩家換手機或清除瀏覽器資料時使用)。'
+        '<p class="muted">點欄位標題可以排序，再點一次反過來；分數相同的玩家名次相同。'
+        '點暱稱或上傳次數可以看這個人的每一次上傳與分數歷程。「解除綁定」後，下一台使用這個暱稱的裝置會綁定它 (玩家換手機或清除瀏覽器資料時使用)。'
         '分數留空儲存會讓玩家從排行榜上消失，但保留暱稱。</p></div>'
-    ) % (len(players), ''.join(rows) or '<tr><td colspan="8" class="muted">還沒有玩家</td></tr>')
+    ) % (
+        len(players),
+        ''.join(sort_header(k, sort_key, sort_desc) for k in ('rank', 'name', 'score', 'plays')),
+        ''.join(sort_header(k, sort_key, sort_desc) for k in ('created', 'last')),
+        ''.join(rows) or '<tr><td colspan="8" class="muted">還沒有玩家</td></tr>',
+    )
 
     return layout('排行榜', flash_html(query) + stats + dates_form + table, session, 'players')
 

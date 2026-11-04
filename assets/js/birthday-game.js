@@ -210,9 +210,14 @@
                 return;
             }
             const list = $('<ol class="bday-lb-list"></ol>');
+            let rank = 0;
             rows.forEach(function (row, i) {
+                // 同分同名次 (例如 1、2、2、4)
+                if (i === 0 || row.score !== rows[i - 1].score) {
+                    rank = i + 1;
+                }
                 const item = $('<li></li>');
-                $('<span class="bday-lb-rank"></span>').text(['🥇', '🥈', '🥉'][i] || (i + 1)).appendTo(item);
+                $('<span class="bday-lb-rank"></span>').text(['🥇', '🥈', '🥉'][rank - 1] || rank).appendTo(item);
                 $('<span class="bday-lb-name"></span>').text(row.name).appendTo(item);
                 $('<span class="bday-lb-score"></span>').text(row.score).appendTo(item);
                 // 暱稱不分大小寫不會重複，用暱稱找自己那一列
