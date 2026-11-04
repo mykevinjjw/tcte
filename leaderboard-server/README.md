@@ -84,6 +84,8 @@ sudo cp nginx-tcteback.conf /etc/nginx/conf.d/tcteback.conf && sudo systemctl re
 sudo certbot --nginx -d tcteback.kevinjja.dpdns.org --redirect
 ```
 
+目前 `tcte-admin.service` 設定 `ADMIN_NO_LOGIN=1`：**不需要帳號密碼，任何知道網址的人都能查看與操作後台**（看到玩家 IP、改分數、刪玩家、改開放日期）。要恢復登入，把它改成 `0` 後執行 `sudo systemctl daemon-reload && sudo systemctl restart tcte-admin`。
+
 A1 上第一次部署時產生的密碼存在 `/root/tcte-admin-password.txt`；改密碼就重新產生 `/etc/tcte-admin.env` 再 `sudo systemctl restart tcte-admin`。登入失敗 10 分鐘內 5 次會暫時鎖定該 IP，登入 12 小時後失效。
 
 ## 常用操作

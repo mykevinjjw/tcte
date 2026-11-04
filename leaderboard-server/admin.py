@@ -47,6 +47,8 @@ PORT = int(os.environ.get('ADMIN_PORT', '8788'))
 ADMIN_USER = os.environ.get('ADMIN_USER', 'admin')
 ADMIN_PASSWORD_HASH = os.environ.get('ADMIN_PASSWORD_HASH', '')
 COOKIE_SECURE = os.environ.get('ADMIN_COOKIE_SECURE', '1') == '1'
+# 1：不需要帳號密碼，任何能連到後台網址的人都能查看與操作 (站長自行決定的設定)
+NO_LOGIN = os.environ.get('ADMIN_NO_LOGIN', '0') == '1'
 
 COOKIE_NAME = 'tcte_admin'
 SESSION_SECONDS = 12 * 60 * 60
@@ -125,7 +127,13 @@ def new_session():
     return sid
 
 
+# 免登入模式時所有人共用的工作階段，表單仍然帶 CSRF 碼，擋掉其他網站偷偷送出的表單
+OPEN_SESSION = {'csrf': secrets.token_urlsafe(32), 'expires': float('inf')}
+
+
 def get_session(sid):
+    if NO_LOGIN:
+        return OPEN_SESSION
     if not sid:
         return None
     with sessions_lock:
@@ -298,10 +306,10 @@ def layout(title, body, session=None, active=''):
         nav = '<nav>' + ''.join(
             '<a href="%s"%s>%s</a>' % (href, ' class="on"' if key == active else '', label)
             for href, label, key in links
-        ) + '</nav>' + (
+        ) + '</nav>' + ('' if NO_LOGIN else (
             '<form method="post" action="/logout"><input type="hidden" name="csrf" value="%s">'
             '<button type="submit">登出</button></form>' % e(session['csrf'])
-        )
+        ))
     return (
         '<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width, initial-scale=1">'
