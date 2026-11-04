@@ -813,10 +813,10 @@
             '<fieldset><legend>2. 遊戲好玩嗎？</legend>' + choiceList('fun', 'radio', stars) + '</fieldset>' +
             '<fieldset><legend>3. 最讓你手忙腳亂的是哪一種？</legend>' + choiceList('hardest', 'radio', hardest) + '</fieldset>' +
             '<fieldset><legend>4. 明年還想玩嗎？</legend>' + choiceList('again', 'radio', plain(SURVEY_AGAIN)) + '</fieldset>' +
-            '<fieldset><legend>5. 如果有小禮物，你想要什麼？（可複選）</legend>' +
+            '<fieldset><legend>5. 要送給排行榜前三名的小禮物，你建議送什麼？（可複選）</legend>' +
             choiceList('gifts', 'checkbox', plain(SURVEY_GIFTS)) +
             '<input type="text" name="gift_other" class="bday-survey-input" maxlength="' + SURVEY_OTHER_LENGTH +
-            '" placeholder="其他想要的（選填）"></fieldset>' +
+            '" placeholder="其他建議（選填）"></fieldset>' +
             '<fieldset><legend>6. 想對避雷針說的生日祝福（選填）</legend>' +
             '<textarea name="wish" class="bday-survey-input" rows="3" maxlength="' + SURVEY_TEXT_LENGTH + '"></textarea></fieldset>' +
             '<fieldset><legend>7. 給站長的建議（選填）</legend>' +
@@ -826,7 +826,7 @@
             '</form>' +
             '<div class="bday-survey-done" style="display:none">' +
             '<p class="bday-overlay-big">🎁 謝謝你填問卷！</p>' +
-            '<p>小禮物決定好之後，站長會再公布喔。</p>' +
+            '<p>前三名的小禮物決定好之後，站長會再公布喔。</p>' +
             '<button type="button" class="bday-lb-btn bday-survey-edit">修改答案</button>' +
             '</div>' +
             '</div>' +

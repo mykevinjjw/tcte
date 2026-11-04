@@ -208,12 +208,12 @@ def clean_answers(data):
         return None, '請選擇明年還想不想玩'
     gifts = data.get('gifts')
     if not isinstance(gifts, list) or not gifts or any(g not in SURVEY_GIFTS for g in gifts):
-        return None, '請至少選一個想要的小禮物'
+        return None, '前三名的禮物建議至少選一個'
     gift_other = clean_text(data.get('gift_other'), SURVEY_OTHER_LENGTH)
     wish = clean_text(data.get('wish'), SURVEY_TEXT_LENGTH)
     advice = clean_text(data.get('advice'), SURVEY_TEXT_LENGTH)
     if gift_other is None:
-        return None, '其他想要的禮物最多 %d 個字' % SURVEY_OTHER_LENGTH
+        return None, '其他禮物建議最多 %d 個字' % SURVEY_OTHER_LENGTH
     if wish is None or advice is None:
         return None, '文字最多 %d 個字' % SURVEY_TEXT_LENGTH
     return {

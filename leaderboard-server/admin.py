@@ -986,7 +986,7 @@ def survey_page(session, query):
         '<div><h3>遊戲好玩嗎？</h3>%s</div>'
         '<div><h3>最手忙腳亂的是？</h3>%s</div>'
         '<div><h3>明年還想玩嗎？</h3>%s</div>'
-        '<div><h3>想要什麼小禮物？ (可複選)</h3>%s%s</div>'
+        '<div><h3>給前三名的禮物建議 (可複選)</h3>%s%s</div>'
         '</div></div>'
     ) % (
         e(lb.SURVEY_CLASS_NAME), bar_rows(count('classmate', lb.SURVEY_CLASSMATE), total),
@@ -1023,7 +1023,7 @@ def survey_page(session, query):
         '<p><a class="button ghost" href="/backup/survey.csv">匯出問卷 (CSV)</a></p>'
         '<div class="table-wrap"><table>'
         '<tr><th>填寫時間</th><th>暱稱</th><th>班級座號</th><th>分數</th><th>好玩</th><th>最手忙腳亂</th><th>明年</th>'
-        '<th>想要的禮物</th><th>祝福</th><th>建議</th></tr>%s</table></div></div>'
+        '<th>前三名禮物建議</th><th>祝福</th><th>建議</th></tr>%s</table></div></div>'
     ) % (rows or '<tr><td colspan="10" class="muted">還沒有人填</td></tr>')
 
     return layout('問卷', flash_html(query) + stats + toggle + summary + wall + table, session, 'survey')
@@ -1191,7 +1191,7 @@ class Handler(BaseHTTPRequestHandler):
                     for row, a in reversed(load_surveys(conn))
                 ]
                 data = csv_bytes(['暱稱', '是%s的' % lb.SURVEY_CLASS_NAME, '座號', '分數', '第一次填寫', '最後修改', '好玩 (1~5)', '最手忙腳亂', '明年還想玩',
-                                  '想要的禮物', '其他禮物', '給避雷針的祝福', '建議'], rows)
+                                  '前三名禮物建議', '其他禮物建議', '給避雷針的祝福', '建議'], rows)
                 name, kind = 'tcte-survey-%s.csv' % stamp, 'text/csv; charset=utf-8'
             else:
                 self.send_body(404, 'not found', 'text/plain; charset=utf-8')
