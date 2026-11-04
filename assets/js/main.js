@@ -65,6 +65,9 @@ $(document).ready(function () {
         const isBirthday = month === adminBirthday.month && day === adminBirthday.day;
         // 小遊戲開放日期以管理後台的設定為準 (birthday-game.js 向伺服器查詢)，還沒查到時用預設日期
         let gameOpen = typeof window.isBirthdayGameOpen === 'function' ? window.isBirthdayGameOpen() : null;
+        if (gameOpen === undefined) {
+            return; // 還在向伺服器查詢開放狀態，查到再顯示 (避免按鈕閃一下又消失)
+        }
         if (gameOpen === null) {
             gameOpen = isBirthday ||
                 (month === birthdayOpenFrom.month && day >= birthdayOpenFrom.day && day < adminBirthday.day);

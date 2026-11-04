@@ -140,6 +140,12 @@
     const STATUS_REFRESH_MS = 60000;
     let serverOpen = null; // null：還沒查到，main.js 會改用預設日期
     let surveyOpen = false; // 遊戲結束後的小問卷 (後台可以關閉)
+    // 剛開頁面時先等伺服器回覆一下，避免用預設日期先顯示遊戲按鈕、查到後又消失
+    const STATUS_WAIT_MS = 3000;
+    let statusPending = leaderboardEnabled();
+    setTimeout(function () {
+        statusPending = false;
+    }, STATUS_WAIT_MS);
 
     function refreshStatus() {
         if (!leaderboardEnabled()) {
@@ -151,11 +157,14 @@
             updateSurveyButton();
         }).catch(function () {
             // 查不到就維持上一次的結果
+        }).then(function () {
+            statusPending = false;
         });
     }
 
+    // undefined：還在等伺服器 (先不顯示)；null：查不到，main.js 改用預設日期
     window.isBirthdayGameOpen = function () {
-        return serverOpen;
+        return statusPending && serverOpen === null ? undefined : serverOpen;
     };
     refreshStatus();
     setInterval(refreshStatus, STATUS_REFRESH_MS);
@@ -800,7 +809,7 @@
             '<div class="bday-survey-seat-row" style="display:none">' +
             '<label class="bday-survey-sub" for="bday-survey-seat">你的座號</label>' +
             '<input type="number" id="bday-survey-seat" name="seat" class="bday-survey-input bday-survey-seat" inputmode="numeric" min="' +
-            SURVEY_SEAT_MIN + '" max="' + SURVEY_SEAT_MAX + '" step="1" placeholder="例如 7"></div></fieldset>' +
+            SURVEY_SEAT_MIN + '" max="' + SURVEY_SEAT_MAX + '" step="1"></div></fieldset>' +
             '<fieldset><legend>2. 遊戲好玩嗎？</legend>' + choiceList('fun', 'radio', stars) + '</fieldset>' +
             '<fieldset><legend>3. 最讓你手忙腳亂的是哪一種？</legend>' + choiceList('hardest', 'radio', hardest) + '</fieldset>' +
             '<fieldset><legend>4. 明年還想玩嗎？</legend>' + choiceList('again', 'radio', plain(SURVEY_AGAIN)) + '</fieldset>' +
