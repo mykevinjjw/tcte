@@ -155,6 +155,15 @@ def fmt_time(text):
     return value.strftime('%m/%d %H:%M:%S')
 
 
+def csv_time(text):
+    # 2026-11-03T19:22:17+08:00 -> 2026/11/03 19:22:17 (台灣時間，Excel 會當成日期時間)
+    try:
+        value = datetime.fromisoformat(text)
+    except (TypeError, ValueError):
+        return text or ''
+    return value.astimezone(lb.TAIPEI).strftime('%Y/%m/%d %H:%M:%S')
+
+
 def e(value):
     return html.escape('' if value is None else str(value), quote=True)
 
@@ -568,17 +577,24 @@ class Handler(BaseHTTPRequestHandler):
                 data, name, kind = memory.serialize(), 'tcte-scores-%s.db' % stamp, 'application/vnd.sqlite3'
                 memory.close()
             elif path == '/backup/players.csv':
-                rows = conn.execute(
-                    "SELECT name, score, CASE WHEN token IS NULL THEN '' ELSE '是' END, created_at, updated_at"
-                    ' FROM players ORDER BY score IS NULL, score DESC, updated_at'
-                ).fetchall()
+                rows = [
+                    (name, score, bound, csv_time(created), csv_time(updated))
+                    for name, score, bound, created, updated in conn.execute(
+                        "SELECT name, score, CASE WHEN token IS NULL THEN '' ELSE '是' END, created_at, updated_at"
+                        ' FROM players ORDER BY score IS NULL, score DESC, updated_at'
+                    )
+                ]
                 data = csv_bytes(['暱稱', '分數', '已綁定裝置', '登記時間', '最後更新'], rows)
                 name, kind = 'tcte-players-%s.csv' % stamp, 'text/csv; charset=utf-8'
             elif path == '/backup/events.csv':
-                rows = conn.execute(
-                    'SELECT at, ip, action, name, score, status, note FROM events ORDER BY id'
-                ).fetchall()
-                data = csv_bytes(['時間', 'IP', '動作', '暱稱', '分數', '結果代碼', '備註'], rows)
+                rows = [
+                    (csv_time(at), ip, ACTION_TEXT.get(action, action), name, score,
+                     STATUS_TEXT.get(status, status), note)
+                    for at, ip, action, name, score, status, note in conn.execute(
+                        'SELECT at, ip, action, name, score, status, note FROM events ORDER BY id'
+                    )
+                ]
+                data = csv_bytes(['時間', 'IP', '動作', '暱稱', '分數', '結果', '備註'], rows)
                 name, kind = 'tcte-events-%s.csv' % stamp, 'text/csv; charset=utf-8'
             else:
                 self.send_body(404, 'not found', 'text/plain; charset=utf-8')
