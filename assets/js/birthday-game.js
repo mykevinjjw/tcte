@@ -744,7 +744,7 @@
 
     // --- 遊戲結束後的小問卷 (選項要和伺服器 server.py 的 SURVEY_* 一致) ---
     const SURVEY_AGAIN = ['想', '看心情', '不想'];
-    const SURVEY_GIFTS = ['零食', '飲料兌換券', '文具', '電子獎狀', '都可以'];
+    const SURVEY_GIFTS = ['零食', '福利社兌換券', '文具', '電子獎狀', '都可以'];
     const SURVEY_TEXT_LENGTH = 200;
     const SURVEY_OTHER_LENGTH = 30;
 

@@ -64,7 +64,7 @@ SURVEY_TEXT_LENGTH = 200
 SURVEY_OTHER_LENGTH = 30
 SURVEY_HARDEST = ['肚子餓', '哭哭了', '想睡覺', '換尿布', '跌倒了']
 SURVEY_AGAIN = ['想', '看心情', '不想']
-SURVEY_GIFTS = ['零食', '飲料兌換券', '文具', '電子獎狀', '都可以']
+SURVEY_GIFTS = ['零食', '福利社兌換券', '文具', '電子獎狀', '都可以']
 
 db_lock = threading.Lock()
 rate_lock = threading.Lock()
