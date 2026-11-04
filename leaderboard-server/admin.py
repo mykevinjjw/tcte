@@ -918,6 +918,14 @@ def load_surveys(conn):
     return surveys
 
 
+def seat_text(answers):
+    if answers.get('classmate') == '是':
+        return '%s %s 號' % (lb.SURVEY_CLASS_NAME, answers.get('seat'))
+    if answers.get('classmate') == '不是':
+        return '外班'
+    return '—'
+
+
 def bar_rows(counts, total):
     """選項統計：一列一個選項，長條長度是人數比例"""
     top = max(counts.values() or [0]) or 1
@@ -974,12 +982,14 @@ def survey_page(session, query):
 
     summary = (
         '<div class="card" data-live="survey-summary"><h2>統計</h2><div class="survey-grid">'
+        '<div><h3>是%s的嗎？</h3>%s</div>'
         '<div><h3>遊戲好玩嗎？</h3>%s</div>'
         '<div><h3>最手忙腳亂的是？</h3>%s</div>'
         '<div><h3>明年還想玩嗎？</h3>%s</div>'
         '<div><h3>想要什麼小禮物？ (可複選)</h3>%s%s</div>'
         '</div></div>'
     ) % (
+        e(lb.SURVEY_CLASS_NAME), bar_rows(count('classmate', lb.SURVEY_CLASSMATE), total),
         bar_rows({'★' * n: stars.count(n) for n in range(5, 0, -1)}, total),
         bar_rows(count('hardest', lb.SURVEY_HARDEST), total),
         bar_rows(count('again', lb.SURVEY_AGAIN), total),
@@ -992,15 +1002,15 @@ def survey_page(session, query):
     wall = (
         '<div class="card" data-live="survey-wall"><h2>給避雷針的生日祝福 (%d 則)</h2>%s</div>'
     ) % (len(wishes), '<div class="wall">%s</div>' % ''.join(
-        '<figure><blockquote>%s</blockquote><figcaption>— %s</figcaption></figure>' % (
-            e(a['wish']), e(row['name']))
+        '<figure><blockquote>%s</blockquote><figcaption>— %s%s</figcaption></figure>' % (
+            e(a['wish']), e(row['name']), e(' (%s)' % seat_text(a)) if a.get('classmate') else '')
         for row, a in wishes
     ) if wishes else '<p class="muted">還沒有人留言</p>')
 
     rows = ''.join(
-        '<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td>'
+        '<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td>'
         '<td class="wrap">%s</td><td class="wrap">%s</td></tr>' % (
-            e(fmt_time(row['updated_at'])), name_link(row['name']),
+            e(fmt_time(row['updated_at'])), name_link(row['name']), e(seat_text(a)),
             e(row['score']) if row['score'] is not None else '—',
             '★' * a['fun'], e(a['hardest']), e(a['again']),
             e('、'.join(a['gifts'] + ([a['gift_other']] if a.get('gift_other') else []))),
@@ -1012,9 +1022,9 @@ def survey_page(session, query):
         '<div class="card" data-live="survey-table"><h2>每一份回覆 (最新在上，每 5 秒自動更新)</h2>'
         '<p><a class="button ghost" href="/backup/survey.csv">匯出問卷 (CSV)</a></p>'
         '<div class="table-wrap"><table>'
-        '<tr><th>填寫時間</th><th>暱稱</th><th>分數</th><th>好玩</th><th>最手忙腳亂</th><th>明年</th>'
+        '<tr><th>填寫時間</th><th>暱稱</th><th>班級座號</th><th>分數</th><th>好玩</th><th>最手忙腳亂</th><th>明年</th>'
         '<th>想要的禮物</th><th>祝福</th><th>建議</th></tr>%s</table></div></div>'
-    ) % (rows or '<tr><td colspan="9" class="muted">還沒有人填</td></tr>')
+    ) % (rows or '<tr><td colspan="10" class="muted">還沒有人填</td></tr>')
 
     return layout('問卷', flash_html(query) + stats + toggle + summary + wall + table, session, 'survey')
 
@@ -1175,12 +1185,12 @@ class Handler(BaseHTTPRequestHandler):
                 name, kind = 'tcte-events-%s.csv' % stamp, 'text/csv; charset=utf-8'
             elif path == '/backup/survey.csv':
                 rows = [
-                    (row['name'], row['score'], csv_time(row['created_at']), csv_time(row['updated_at']),
-                     a['fun'], a['hardest'], a['again'], '、'.join(a['gifts']), a.get('gift_other', ''),
+                    (row['name'], a.get('classmate', ''), a.get('seat') or '', row['score'],
+                     csv_time(row['created_at']), csv_time(row['updated_at']), a['fun'], a['hardest'], a['again'], '、'.join(a['gifts']), a.get('gift_other', ''),
                      a.get('wish', ''), a.get('advice', ''))
                     for row, a in reversed(load_surveys(conn))
                 ]
-                data = csv_bytes(['暱稱', '分數', '第一次填寫', '最後修改', '好玩 (1~5)', '最手忙腳亂', '明年還想玩',
+                data = csv_bytes(['暱稱', '是%s的' % lb.SURVEY_CLASS_NAME, '座號', '分數', '第一次填寫', '最後修改', '好玩 (1~5)', '最手忙腳亂', '明年還想玩',
                                   '想要的禮物', '其他禮物', '給避雷針的祝福', '建議'], rows)
                 name, kind = 'tcte-survey-%s.csv' % stamp, 'text/csv; charset=utf-8'
             else:

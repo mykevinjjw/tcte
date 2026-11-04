@@ -62,6 +62,9 @@ TOKEN_PATTERN = re.compile(r'^[0-9a-f]{16,64}$')
 MAX_SURVEY_BODY_BYTES = 8192
 SURVEY_TEXT_LENGTH = 200
 SURVEY_OTHER_LENGTH = 30
+SURVEY_CLASS_NAME = '幼三甲'
+SURVEY_CLASSMATE = ['是', '不是']
+SURVEY_SEAT_MIN, SURVEY_SEAT_MAX = 1, 99
 SURVEY_HARDEST = ['肚子餓', '哭哭了', '想睡覺', '換尿布', '跌倒了']
 SURVEY_AGAIN = ['想', '看心情', '不想']
 SURVEY_GIFTS = ['零食', '福利社兌換券', '文具', '電子獎狀', '都可以']
@@ -186,6 +189,16 @@ def clean_answers(data):
     """檢查問卷答案，格式不對回傳 (None, 錯誤訊息)"""
     if not isinstance(data, dict):
         return None, '問卷格式不正確'
+    classmate = data.get('classmate')
+    if classmate not in SURVEY_CLASSMATE:
+        return None, '請選擇是不是%s的' % SURVEY_CLASS_NAME
+    seat = data.get('seat')
+    if classmate == '是':
+        # 幼三甲的同學才需要填座號
+        if isinstance(seat, bool) or not isinstance(seat, int) or not SURVEY_SEAT_MIN <= seat <= SURVEY_SEAT_MAX:
+            return None, '請填座號 (%d~%d)' % (SURVEY_SEAT_MIN, SURVEY_SEAT_MAX)
+    else:
+        seat = None
     fun = data.get('fun')
     if isinstance(fun, bool) or not isinstance(fun, int) or not 1 <= fun <= 5:
         return None, '請選擇遊戲好不好玩 (1~5 顆星)'
@@ -204,6 +217,8 @@ def clean_answers(data):
     if wish is None or advice is None:
         return None, '文字最多 %d 個字' % SURVEY_TEXT_LENGTH
     return {
+        'classmate': classmate,
+        'seat': seat,
         'fun': fun,
         'hardest': data['hardest'],
         'again': data['again'],

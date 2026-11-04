@@ -914,6 +914,20 @@ body {
     margin-top: 0;
 }
 
+.bday-survey-seat-row {
+    margin-top: 10px;
+}
+
+.bday-survey-sub {
+    display: block;
+    font-size: 0.92rem;
+}
+
+.bday-survey-form .bday-survey-seat {
+    width: 8em;
+    margin-top: 4px;
+}
+
 .bday-survey-done {
     padding: 20px 0;
     text-align: center;
