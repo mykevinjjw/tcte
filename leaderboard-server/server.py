@@ -20,7 +20,9 @@
 GET  /scores?limit=10               -> [{"name": "...", "score": 123}, ...]
 POST /names  {name, token}          -> {"ok": true}；暱稱已被其他裝置使用時回 409
 POST /scores {name, token, score}   -> {"rank": 3, "best": 123}；同一個暱稱只保留最高分
-GET  /status                        -> {"open": true, "dates": ["11-03", "11-04"]}；網站用來決定要不要開放小遊戲
+GET  /status                        -> {"open": true, "dates": ["11-03", "11-04"], "survey": false}；網站用來決定要不要開放小遊戲與問卷
+POST /survey/load {name, token}     -> {"answers": {...} 或 null}；只有上傳過分數的暱稱本人 (同一台裝置) 能填
+POST /survey {name, token, answers} -> {"ok": true}；同一個暱稱重填會覆蓋
 GET  /health                        -> {"ok": true}
 
 token 是每台裝置隨機產生的識別碼，暱稱屬於第一個登記它的裝置。
@@ -55,6 +57,14 @@ MAX_BODY_BYTES = 1024
 RATE_LIMIT_COUNT = 10  # 每個 IP 每分鐘最多登記暱稱 + 上傳分數的次數
 RATE_LIMIT_WINDOW = 60
 TOKEN_PATTERN = re.compile(r'^[0-9a-f]{16,64}$')
+
+# --- 遊戲結束後的小問卷 (選項要和網站 birthday-game.js 的 SURVEY 一致) ---
+MAX_SURVEY_BODY_BYTES = 8192
+SURVEY_TEXT_LENGTH = 200
+SURVEY_OTHER_LENGTH = 30
+SURVEY_HARDEST = ['肚子餓', '哭哭了', '想睡覺', '換尿布', '跌倒了']
+SURVEY_AGAIN = ['想', '看心情', '不想']
+SURVEY_GIFTS = ['零食', '飲料兌換券', '文具', '電子獎狀', '都可以']
 
 db_lock = threading.Lock()
 rate_lock = threading.Lock()
@@ -121,6 +131,16 @@ def init_db():
             ' updated_at TEXT NOT NULL)'
         )
         conn.execute('CREATE INDEX IF NOT EXISTS idx_players_rank ON players (score DESC, updated_at, id)')
+        # 問卷：一個暱稱一份，answers 是 JSON
+        conn.execute(
+            'CREATE TABLE IF NOT EXISTS surveys ('
+            ' id INTEGER PRIMARY KEY AUTOINCREMENT,'
+            ' name TEXT NOT NULL UNIQUE COLLATE NOCASE,'
+            ' token TEXT NOT NULL,'
+            ' answers TEXT NOT NULL,'
+            ' created_at TEXT NOT NULL,'
+            ' updated_at TEXT NOT NULL)'
+        )
 
         # 舊版每次上傳一列的 scores 表：每個暱稱取最高分搬過來，原表改名保留備份
         # (SQLite 搭配單一 MAX() 時，name 與 created_at 會取自最高分的那一列)
@@ -139,6 +159,59 @@ def is_open_date(conn):
         return True
     now = datetime.now(TAIPEI)
     return (now.month, now.day) in get_open_dates(conn)
+
+
+def survey_enabled(conn):
+    """後台的問卷開關 (預設開)"""
+    row = conn.execute("SELECT value FROM settings WHERE key = 'survey_open'").fetchone()
+    return row is None or row[0] == '1'
+
+
+def is_survey_open(conn):
+    # 遊戲開放的日子不收問卷，結束後才開始
+    return survey_enabled(conn) and not is_open_date(conn)
+
+
+def clean_text(value, limit):
+    if value is None:
+        return ''
+    if not isinstance(value, str):
+        return None
+    # 保留換行，去掉其他控制字元
+    text = ''.join(ch for ch in value if ch == '\n' or not unicodedata.category(ch).startswith('C')).strip()
+    return text if len(text) <= limit else None
+
+
+def clean_answers(data):
+    """檢查問卷答案，格式不對回傳 (None, 錯誤訊息)"""
+    if not isinstance(data, dict):
+        return None, '問卷格式不正確'
+    fun = data.get('fun')
+    if isinstance(fun, bool) or not isinstance(fun, int) or not 1 <= fun <= 5:
+        return None, '請選擇遊戲好不好玩 (1~5 顆星)'
+    if data.get('hardest') not in SURVEY_HARDEST:
+        return None, '請選擇最手忙腳亂的狀況'
+    if data.get('again') not in SURVEY_AGAIN:
+        return None, '請選擇明年還想不想玩'
+    gifts = data.get('gifts')
+    if not isinstance(gifts, list) or not gifts or any(g not in SURVEY_GIFTS for g in gifts):
+        return None, '請至少選一個想要的小禮物'
+    gift_other = clean_text(data.get('gift_other'), SURVEY_OTHER_LENGTH)
+    wish = clean_text(data.get('wish'), SURVEY_TEXT_LENGTH)
+    advice = clean_text(data.get('advice'), SURVEY_TEXT_LENGTH)
+    if gift_other is None:
+        return None, '其他想要的禮物最多 %d 個字' % SURVEY_OTHER_LENGTH
+    if wish is None or advice is None:
+        return None, '文字最多 %d 個字' % SURVEY_TEXT_LENGTH
+    return {
+        'fun': fun,
+        'hardest': data['hardest'],
+        'again': data['again'],
+        'gifts': [g for g in SURVEY_GIFTS if g in gifts],
+        'gift_other': gift_other,
+        'wish': wish,
+        'advice': advice,
+    }, None
 
 
 def log_event(conn, ip, action, name, score, status, note=None, token=None):
@@ -224,7 +297,8 @@ class Handler(BaseHTTPRequestHandler):
             with sqlite3.connect(DB_PATH) as conn:
                 dates = get_open_dates(conn)
                 is_open = is_open_date(conn)
-            self.send_json(200, {'open': is_open, 'dates': ['%02d-%02d' % d for d in dates]})
+                survey = is_survey_open(conn)
+            self.send_json(200, {'open': is_open, 'dates': ['%02d-%02d' % d for d in dates], 'survey': survey})
             return
         if url.path == '/best':
             # 某個暱稱目前在伺服器上的最高分 (管理後台可能改過)，沒有分數時 best 為 null
@@ -257,12 +331,12 @@ class Handler(BaseHTTPRequestHandler):
             ).fetchall()
         self.send_json(200, [{'name': name, 'score': score} for name, score in rows])
 
-    def read_json(self):
+    def read_json(self, max_bytes=MAX_BODY_BYTES):
         try:
             length = int(self.headers.get('Content-Length', '0'))
         except ValueError:
             length = 0
-        if not 0 < length <= MAX_BODY_BYTES:
+        if not 0 < length <= max_bytes:
             return None
         try:
             data = json.loads(self.rfile.read(length).decode('utf-8'))
@@ -270,8 +344,59 @@ class Handler(BaseHTTPRequestHandler):
             return None
         return data if isinstance(data, dict) else None
 
+    def handle_survey(self, path):
+        with sqlite3.connect(DB_PATH) as conn:
+            survey_open = is_survey_open(conn)
+        if not survey_open:
+            self.send_json(403, {'error': '問卷現在沒有開放喔'})
+            return
+        data = self.read_json(MAX_SURVEY_BODY_BYTES)
+        if data is None:
+            self.send_json(400, {'error': '資料格式不正確'})
+            return
+        name = clean_name(data.get('name'))
+        token = clean_token(data.get('token'))
+        if name is None or token is None:
+            self.send_json(400, {'error': '找不到你的暱稱，請用玩遊戲的那台裝置填寫'})
+            return
+        ip = self.client_ip()
+        if not allow_post(ip):
+            self.send_json(429, {'error': '太頻繁了，休息一下再試'})
+            return
+
+        with db_lock, sqlite3.connect(DB_PATH) as conn:
+            # 只有上傳過分數、而且是同一台裝置的玩家本人能填
+            row = conn.execute('SELECT name, token, score FROM players WHERE name = ?', (name,)).fetchone()
+            if row is None or row[1] != token or row[2] is None:
+                self.send_json(403, {'error': '只有玩過遊戲的玩家能填，請用玩遊戲的那台裝置填寫'})
+                return
+            name = row[0]
+            existing = conn.execute('SELECT answers FROM surveys WHERE name = ?', (name,)).fetchone()
+            if path == '/survey/load':
+                self.send_json(200, {'answers': json.loads(existing[0]) if existing else None})
+                return
+
+            answers, error = clean_answers(data.get('answers'))
+            if answers is None:
+                self.send_json(400, {'error': error})
+                return
+            text = json.dumps(answers, ensure_ascii=False)
+            if existing:
+                conn.execute('UPDATE surveys SET token = ?, answers = ?, updated_at = ? WHERE name = ?',
+                             (token, text, now_text(), name))
+            else:
+                conn.execute(
+                    'INSERT INTO surveys (name, token, answers, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
+                    (name, token, text, now_text(), now_text())
+                )
+            log_event(conn, ip, 'survey', name, None, 200, '修改問卷' if existing else '填寫問卷', token)
+        self.send_json(200, {'ok': True})
+
     def do_POST(self):
         path = urlparse(self.path).path
+        if path in ('/survey', '/survey/load'):
+            self.handle_survey(path)
+            return
         if path not in ('/names', '/scores'):
             self.send_json(404, {'error': '找不到這個網址'})
             return

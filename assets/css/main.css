@@ -808,6 +808,117 @@ body {
     overflow-y: auto;
 }
 
+/* 遊戲結束後的小問卷 */
+.bday-survey-btn {
+    display: block;
+    width: 100%;
+    margin-top: 10px;
+    padding: 7px 10px;
+    border: none;
+    border-radius: 18px;
+    background: #ffe082;
+    color: #5d4037;
+    font-family: inherit;
+    font-size: 0.95rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.bday-survey-btn:hover {
+    background: #ffd54f;
+}
+
+.bday-survey .bday-game-panel {
+    max-width: 520px;
+}
+
+.bday-survey-who {
+    margin: 0 0 8px;
+    text-align: center;
+}
+
+.bday-survey-form {
+    text-align: center;
+}
+
+.bday-survey-form fieldset {
+    margin: 0 0 12px;
+    padding: 10px 12px;
+    border: none;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.7);
+    text-align: left;
+}
+
+.bday-survey-form legend {
+    float: left;
+    width: 100%;
+    margin-bottom: 8px;
+    padding: 0;
+    font-weight: 700;
+}
+
+.bday-survey-choices {
+    clear: both;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.bday-survey-choices label {
+    cursor: pointer;
+}
+
+.bday-survey-choices input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.bday-survey-choices span {
+    display: inline-block;
+    padding: 5px 12px;
+    border: 2px solid #f8bbd0;
+    border-radius: 16px;
+    background: #ffffff;
+    font-size: 0.92rem;
+}
+
+.bday-survey-choices input:checked + span {
+    border-color: #e91e63;
+    background: #e91e63;
+    color: #ffffff;
+}
+
+.bday-survey-choices input:focus-visible + span {
+    outline: 2px solid #5d4037;
+    outline-offset: 2px;
+}
+
+.bday-survey-input {
+    clear: both;
+    display: block;
+    box-sizing: border-box;
+    width: 100%;
+    margin-top: 8px;
+    padding: 8px 12px;
+    border: 2px solid #f8bbd0;
+    border-radius: 12px;
+    color: #5d4037;
+    font-family: inherit;
+    font-size: 0.95rem;
+    resize: vertical;
+}
+
+.bday-survey-form textarea.bday-survey-input {
+    margin-top: 0;
+}
+
+.bday-survey-done {
+    padding: 20px 0;
+    text-align: center;
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
     .content {

@@ -18,7 +18,7 @@
 """生日小遊戲排行榜管理後台：只用 Python 標準庫，跟 server.py 共用同一個 SQLite 資料庫。
 
 功能：管理排行榜 (改分數、解除裝置綁定、刪除)、玩家完整紀錄與分數歷程、時間軸、設定開放日期、
-查看上傳紀錄、下載備份。
+遊戲結束後的問卷 (開關、統計、祝福留言)、查看上傳紀錄、下載備份。
 
 產生密碼雜湊 (放到 ADMIN_PASSWORD_HASH)：
     python3 admin.py hash-password      # 從標準輸入讀密碼
@@ -28,6 +28,7 @@ import hashlib
 import hmac
 import html
 import io
+import json
 import os
 import re
 import secrets
@@ -72,6 +73,8 @@ FLASH_MESSAGES = {
     'bad-dates': '日期格式不正確，請用「月-日」並以逗號分隔，例如 11-03,11-04',
     'bad-score': '分數要是 0~%d 的整數，留空代表清除分數' % lb.MAX_SCORE,
     'missing': '找不到這位玩家，可能已經被刪除',
+    'survey-on': '已開啟問卷 (遊戲開放的日子不會顯示)',
+    'survey-off': '已關閉問卷',
 }
 STATUS_TEXT = {
     200: '登記成功',
@@ -81,6 +84,7 @@ STATUS_TEXT = {
 ACTION_TEXT = {
     'claim': '登記暱稱',
     'score': '上傳分數',
+    'survey': '問卷',
     'admin': '後台操作',
 }
 
@@ -225,6 +229,18 @@ header button { background: none; border-color: #90a4ae; color: #cfd8dc; padding
 .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .card h3 { margin: 16px 0 8px; font-size: 0.95rem; }
 code { font-size: 0.85em; color: var(--muted); }
+.survey-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 0 24px; }
+.survey-grid h3 { margin-top: 4px; }
+.bars { display: grid; gap: 6px; }
+.bar-row { display: grid; grid-template-columns: 6.5em 1fr 6.5em; gap: 8px; align-items: center; font-size: 0.9rem; }
+.bar-track { height: 10px; border-radius: 4px; background: var(--line); overflow: hidden; }
+.bar-track i { display: block; height: 100%; border-radius: 4px; background: var(--accent); }
+.bar-value { color: var(--muted); font-variant-numeric: tabular-nums; }
+.wall { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+.wall figure { margin: 0; padding: 12px 14px; border-radius: 10px; background: #fff8e1; border: 1px solid #ffe082; }
+.wall blockquote { margin: 0 0 6px; white-space: pre-wrap; word-break: break-word; }
+.wall figcaption { color: var(--muted); font-size: 0.85rem; text-align: right; }
+td.wrap { white-space: pre-wrap; min-width: 160px; max-width: 280px; word-break: break-word; }
 tr.hl td { background: #fce4ec; }
 .chart { width: 100%; height: auto; display: block; }
 .chart .grid { stroke: var(--line); stroke-width: 1; }
@@ -304,8 +320,8 @@ LIVE_JS = '''(function () {
 def layout(title, body, session=None, active=''):
     nav = ''
     if session:
-        links = [('/', '排行榜', 'players'), ('/timeline', '時間軸', 'timeline'), ('/events', '上傳紀錄', 'events'),
-                 ('/backup', '備份下載', 'backup')]
+        links = [('/', '排行榜', 'players'), ('/timeline', '時間軸', 'timeline'), ('/survey', '問卷', 'survey'),
+                 ('/events', '上傳紀錄', 'events'), ('/backup', '備份下載', 'backup')]
         nav = '<nav>' + ''.join(
             '<a href="%s"%s>%s</a>' % (href, ' class="on"' if key == active else '', label)
             for href, label, key in links
@@ -607,7 +623,7 @@ def score_text(score):
 
 
 def status_text(action, status):
-    if action == 'admin':
+    if action in ('admin', 'survey'):
         return '完成'
     return STATUS_TEXT.get(status, status)
 
@@ -887,12 +903,129 @@ def events_page(session, query):
     return layout('上傳紀錄', filters + table, session, 'events')
 
 
+def load_surveys(conn):
+    rows = conn.execute(
+        'SELECT s.name, s.answers, s.created_at, s.updated_at, p.score FROM surveys s'
+        ' LEFT JOIN players p ON p.name = s.name ORDER BY s.updated_at DESC'
+    ).fetchall()
+    surveys = []
+    for row in rows:
+        try:
+            answers = json.loads(row['answers'])
+        except ValueError:
+            continue
+        surveys.append((row, answers))
+    return surveys
+
+
+def bar_rows(counts, total):
+    """選項統計：一列一個選項，長條長度是人數比例"""
+    top = max(counts.values() or [0]) or 1
+    return '<div class="bars">%s</div>' % ''.join(
+        '<div class="bar-row"><span class="bar-label">%s</span>'
+        '<span class="bar-track"><i style="width:%.1f%%"></i></span>'
+        '<span class="bar-value">%d 人%s</span></div>' % (
+            e(label), count * 100 / top, count, ' (%d%%)' % round(count * 100 / total) if total else '')
+        for label, count in counts.items()
+    )
+
+
+def survey_page(session, query):
+    with db() as conn:
+        enabled = lb.survey_enabled(conn)
+        is_open = lb.is_survey_open(conn)
+        game_open = lb.is_open_date(conn)
+        eligible = conn.execute('SELECT COUNT(*) FROM players WHERE score IS NOT NULL').fetchone()[0]
+        surveys = load_surveys(conn)
+
+    total = len(surveys)
+    if is_open:
+        state = '<b class="open">開放中</b>'
+    elif enabled and game_open:
+        state = '<b class="closed">等遊戲結束</b>'
+    else:
+        state = '<b class="closed">已關閉</b>'
+    stars = [a['fun'] for _, a in surveys]
+    stats = (
+        '<div class="stats" style="margin-bottom:16px" data-live="survey-stats">'
+        '<div class="stat"><b>%d / %d</b><span>已填 / 能填的玩家</span></div>'
+        '<div class="stat"><b>%s</b><span>平均好玩程度</span></div>'
+        '<div class="stat">%s<span>問卷狀態 (台灣時間)</span></div>'
+        '</div>'
+    ) % (total, eligible, '%.1f ★' % (sum(stars) / len(stars)) if stars else '—', state)
+
+    toggle = (
+        '<div class="card"><h2>問卷開關</h2>'
+        '<form method="post" action="/settings/survey" class="row">%s'
+        '<input type="hidden" name="open" value="%s"><button type="submit"%s>%s</button></form>'
+        '<p class="muted">開啟時，遊戲開放的日子不會出現問卷，遊戲結束後才會在網站排行榜下方出現「填問卷」按鈕。'
+        '只有上傳過分數的玩家，用玩遊戲的那台裝置才能填；同一個暱稱可以重填，以最後一次為準。</p></div>'
+    ) % (csrf_input(session), '0' if enabled else '1', ' class="danger"' if enabled else '',
+         '關閉問卷' if enabled else '開啟問卷')
+
+    def count(key, options):
+        result = {option: 0 for option in options}
+        for _, a in surveys:
+            values = a.get(key)
+            for value in values if isinstance(values, list) else [values]:
+                if value in result:
+                    result[value] += 1
+        return result
+
+    summary = (
+        '<div class="card" data-live="survey-summary"><h2>統計</h2><div class="survey-grid">'
+        '<div><h3>遊戲好玩嗎？</h3>%s</div>'
+        '<div><h3>最手忙腳亂的是？</h3>%s</div>'
+        '<div><h3>明年還想玩嗎？</h3>%s</div>'
+        '<div><h3>想要什麼小禮物？ (可複選)</h3>%s%s</div>'
+        '</div></div>'
+    ) % (
+        bar_rows({'★' * n: stars.count(n) for n in range(5, 0, -1)}, total),
+        bar_rows(count('hardest', lb.SURVEY_HARDEST), total),
+        bar_rows(count('again', lb.SURVEY_AGAIN), total),
+        bar_rows(count('gifts', lb.SURVEY_GIFTS), total),
+        ''.join('<p class="muted">其他：%s (%s)</p>' % (e(a['gift_other']), name_link(row['name']))
+                for row, a in surveys if a.get('gift_other')),
+    )
+
+    wishes = [(row, a) for row, a in surveys if a.get('wish')]
+    wall = (
+        '<div class="card" data-live="survey-wall"><h2>給避雷針的生日祝福 (%d 則)</h2>%s</div>'
+    ) % (len(wishes), '<div class="wall">%s</div>' % ''.join(
+        '<figure><blockquote>%s</blockquote><figcaption>— %s</figcaption></figure>' % (
+            e(a['wish']), e(row['name']))
+        for row, a in wishes
+    ) if wishes else '<p class="muted">還沒有人留言</p>')
+
+    rows = ''.join(
+        '<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td>'
+        '<td class="wrap">%s</td><td class="wrap">%s</td></tr>' % (
+            e(fmt_time(row['updated_at'])), name_link(row['name']),
+            e(row['score']) if row['score'] is not None else '—',
+            '★' * a['fun'], e(a['hardest']), e(a['again']),
+            e('、'.join(a['gifts'] + ([a['gift_other']] if a.get('gift_other') else []))),
+            e(a.get('wish', '')), e(a.get('advice', '')),
+        )
+        for row, a in surveys
+    )
+    table = (
+        '<div class="card" data-live="survey-table"><h2>每一份回覆 (最新在上，每 5 秒自動更新)</h2>'
+        '<p><a class="button ghost" href="/backup/survey.csv">匯出問卷 (CSV)</a></p>'
+        '<div class="table-wrap"><table>'
+        '<tr><th>填寫時間</th><th>暱稱</th><th>分數</th><th>好玩</th><th>最手忙腳亂</th><th>明年</th>'
+        '<th>想要的禮物</th><th>祝福</th><th>建議</th></tr>%s</table></div></div>'
+    ) % (rows or '<tr><td colspan="9" class="muted">還沒有人填</td></tr>')
+
+    return layout('問卷', flash_html(query) + stats + toggle + summary + wall + table, session, 'survey')
+
+
 def backup_page(session):
     body = (
         '<div class="card"><h2>備份下載</h2><div class="row">'
         '<a class="button" href="/backup/scores.db">下載完整資料庫 (.db)</a>'
         '<a class="button ghost" href="/backup/players.csv">匯出排行榜 (CSV)</a>'
-        '<a class="button ghost" href="/backup/events.csv">匯出上傳紀錄 (CSV)</a></div>'
+        '<a class="button ghost" href="/backup/events.csv">匯出上傳紀錄 (CSV)</a>'
+        '<a class="button ghost" href="/backup/survey.csv">匯出問卷 (CSV)</a></div>'
         '<p class="muted">.db 是 SQLite 檔案，包含排行榜、上傳紀錄與設定，可以用 DB Browser for SQLite 開啟，'
         '也可以直接放回伺服器還原。CSV 可以用 Excel 開啟。</p></div>'
     )
@@ -1001,6 +1134,8 @@ class Handler(BaseHTTPRequestHandler):
                 self.redirect('/?msg=missing')
         elif url.path == '/timeline':
             self.send_body(200, timeline_page(session, query))
+        elif url.path == '/survey':
+            self.send_body(200, survey_page(session, query))
         elif url.path == '/events':
             self.send_body(200, events_page(session, query))
         elif url.path == '/backup':
@@ -1038,6 +1173,16 @@ class Handler(BaseHTTPRequestHandler):
                 ]
                 data = csv_bytes(['時間', 'IP', '裝置', '動作', '暱稱', '分數', '結果', '備註'], rows)
                 name, kind = 'tcte-events-%s.csv' % stamp, 'text/csv; charset=utf-8'
+            elif path == '/backup/survey.csv':
+                rows = [
+                    (row['name'], row['score'], csv_time(row['created_at']), csv_time(row['updated_at']),
+                     a['fun'], a['hardest'], a['again'], '、'.join(a['gifts']), a.get('gift_other', ''),
+                     a.get('wish', ''), a.get('advice', ''))
+                    for row, a in reversed(load_surveys(conn))
+                ]
+                data = csv_bytes(['暱稱', '分數', '第一次填寫', '最後修改', '好玩 (1~5)', '最手忙腳亂', '明年還想玩',
+                                  '想要的禮物', '其他禮物', '給避雷針的祝福', '建議'], rows)
+                name, kind = 'tcte-survey-%s.csv' % stamp, 'text/csv; charset=utf-8'
             else:
                 self.send_body(404, 'not found', 'text/plain; charset=utf-8')
                 return
@@ -1086,6 +1231,14 @@ class Handler(BaseHTTPRequestHandler):
                 conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('open_dates', ?)", (text,))
                 log_admin(conn, ip, '-', '開放日期改為 %s' % (text or '(不開放)'))
             self.redirect('/?msg=dates')
+            return
+
+        if path == '/settings/survey':
+            value = '1' if form.get('open') == '1' else '0'
+            with lb.db_lock, db() as conn:
+                conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('survey_open', ?)", (value,))
+                log_admin(conn, ip, '-', '問卷%s' % ('開啟' if value == '1' else '關閉'))
+            self.redirect('/survey?msg=survey-%s' % ('on' if value == '1' else 'off'))
             return
 
         if path not in ('/players/score', '/players/unbind', '/players/delete'):
