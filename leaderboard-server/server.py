@@ -50,7 +50,7 @@ MAX_EVENTS = 20000  # events 表最多保留的筆數
 TAIPEI = timezone(timedelta(hours=8))
 MAX_NAME_LENGTH = 12
 MAX_SCORE = 1500  # 60 秒內正常玩不可能超過的分數
-MAX_LIMIT = 50
+MAX_LIMIT = 100
 MAX_BODY_BYTES = 1024
 RATE_LIMIT_COUNT = 10  # 每個 IP 每分鐘最多登記暱稱 + 上傳分數的次數
 RATE_LIMIT_WINDOW = 60

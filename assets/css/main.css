@@ -667,6 +667,12 @@ body {
     color: #8d6e63;
 }
 
+/* 遊戲裡的排行榜顯示全部玩家，名單太長時在框內捲動，按鈕不會被擠到下面 */
+.bday-overlay .bday-lb {
+    max-height: 45vh;
+    overflow-y: auto;
+}
+
 .bday-lb-list {
     max-width: 320px;
     margin: 8px auto;

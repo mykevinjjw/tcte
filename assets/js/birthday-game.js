@@ -26,7 +26,7 @@
     // --- 線上排行榜 (自架於 OCI A1，見 leaderboard-server/) ---
     // 留空時排行榜會自動隱藏；GitHub Pages 是 HTTPS，所以 API 也必須是 HTTPS
     const LEADERBOARD_URL = 'https://tcte-lb.kevinjja.dpdns.org';
-    const LEADERBOARD_SIZE = 10;
+    const LEADERBOARD_SIZE = 100; // 排行榜顯示全部玩家 (伺服器最多回傳 100 位)
 
     // emoji 沒有尿布，自己畫一個 (大小跟 emoji 一樣是 1em)
     const DIAPER_ICON =
@@ -232,7 +232,7 @@
     function showLeaderboard(highlight, message) {
         $('#bday-overlay').html(
             '<div class="bday-overlay-box">' +
-            '<p class="bday-overlay-big">🏆 排行榜 Top ' + LEADERBOARD_SIZE + '</p>' +
+            '<p class="bday-overlay-big">🏆 排行榜</p>' +
             '<p class="bday-lb-message"></p>' +
             '<div class="bday-lb"></div>' +
             '<button type="button" class="bday-start">' + (state ? '再玩一次 ↻' : '開始上課 ▶') + '</button>' +
