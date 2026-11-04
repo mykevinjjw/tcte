@@ -212,9 +212,9 @@
             const list = $('<ol class="bday-lb-list"></ol>');
             let rank = 0;
             rows.forEach(function (row, i) {
-                // 同分同名次 (例如 1、2、2、4)
+                // 同分同名次，下一個分數接著排不跳號 (例如 1、2、2、2、3)
                 if (i === 0 || row.score !== rows[i - 1].score) {
-                    rank = i + 1;
+                    rank += 1;
                 }
                 const item = $('<li></li>');
                 $('<span class="bday-lb-rank"></span>').text(['🥇', '🥈', '🥉'][rank - 1] || rank).appendTo(item);

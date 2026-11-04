@@ -437,13 +437,15 @@ def players_page(session, query):
         '留空代表完全不開放。生日當天 (11/4) 的祝福橫幅不受影響。</p></div>'
     ) % (csrf_input(session), e(date_text))
 
-    # 同分同名次 (例如 1、2、2、4)，和網站上的排行榜一致
+    # 同分同名次，下一個分數接著排不跳號 (例如 1、2、2、2、3)，和網站上的排行榜一致
     ranks = {}
+    rank = 0
     for i, p in enumerate(players):
         if p['score'] is None:
             continue
-        prev = players[i - 1] if i else None
-        ranks[p['id']] = ranks[prev['id']] if prev and prev['score'] == p['score'] else i + 1
+        if not i or players[i - 1]['score'] != p['score']:
+            rank += 1
+        ranks[p['id']] = rank
 
     sort_key, sort_desc = parse_sort(query)
     players = sort_players(players, ranks, plays, sort_key, sort_desc)
@@ -620,7 +622,7 @@ def player_page(session, name):
         ).fetchall()
         rank = None
         if player and player['score'] is not None:
-            rank = conn.execute('SELECT COUNT(*) FROM players WHERE score > ?', (player['score'],)).fetchone()[0] + 1
+            rank = conn.execute('SELECT COUNT(DISTINCT score) FROM players WHERE score > ?', (player['score'],)).fetchone()[0] + 1
     if not player and not events:
         return None
     title = player['name'] if player else name

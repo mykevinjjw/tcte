@@ -237,7 +237,7 @@ class Handler(BaseHTTPRequestHandler):
                 best = row[0] if row else None
                 rank = None
                 if best is not None:
-                    rank = conn.execute('SELECT COUNT(*) FROM players WHERE score > ?', (best,)).fetchone()[0] + 1
+                    rank = conn.execute('SELECT COUNT(DISTINCT score) FROM players WHERE score > ?', (best,)).fetchone()[0] + 1
             self.send_json(200, {'best': best, 'rank': rank})
             return
         if url.path != '/scores':
@@ -333,7 +333,7 @@ class Handler(BaseHTTPRequestHandler):
                 log_event(conn, ip, action, name, None, 200, token=token)
                 self.send_json(200, {'ok': True})
                 return
-            higher = conn.execute('SELECT COUNT(*) FROM players WHERE score > ?', (best,)).fetchone()[0]
+            higher = conn.execute('SELECT COUNT(DISTINCT score) FROM players WHERE score > ?', (best,)).fetchone()[0]
             log_event(conn, ip, action, name, score, 201, '最高分 %d，第 %d 名' % (best, higher + 1), token)
         self.send_json(201, {'rank': higher + 1, 'best': best})
 
