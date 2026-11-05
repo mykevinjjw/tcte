@@ -159,6 +159,67 @@ a.game-card:hover {
     margin: 0 auto;
 }
 
+/* 遊戲頁：遊戲在左、排行榜在右；窄螢幕時排行榜移到遊戲下面 */
+.bday-page .games-main.bday-layout {
+    max-width: 960px;
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+}
+
+.bday-layout .bday-game {
+    flex: 1;
+    min-width: 0;
+}
+
+.bday-side-lb {
+    width: 260px;
+    flex-shrink: 0;
+    box-sizing: border-box;
+    padding: 14px;
+    border-radius: 20px;
+    background: linear-gradient(160deg, #fff8e1, #ffe0ec);
+    color: #4e342e;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+}
+
+.bday-side-lb h2 {
+    margin: 0 0 6px;
+    font-size: 1.15rem;
+}
+
+.bday-side-lb .bday-lb {
+    max-height: calc(100vh - 160px);
+    overflow-y: auto;
+}
+
+.bday-side-lb .bday-lb-list {
+    margin: 0;
+    font-size: 0.92rem;
+}
+
+.bday-side-lb .bday-lb-status {
+    margin: 8px 0;
+    font-size: 0.9rem;
+}
+
+@media (max-width: 820px) {
+    .bday-page .games-main.bday-layout {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .bday-side-lb {
+        width: 100%;
+        max-width: 620px;
+        margin: 0 auto;
+    }
+
+    .bday-side-lb .bday-lb {
+        max-height: 50vh;
+    }
+}
+
 /* Birthday Mini Game */
 .bday-game {
     position: fixed;

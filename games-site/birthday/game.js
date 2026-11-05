@@ -161,6 +161,7 @@
             playerName = name;
             G.saveName(name);
             syncBest();
+            refreshSideBoard();
             startGame();
         }).catch(function (err) {
             msg.text(err instanceof TypeError ? '連不上排行榜，請稍後再試' : err.message);
@@ -187,6 +188,7 @@
         G.postJson('/scores', { name: name, score: score, token: G.getToken() }).then(function (result) {
             state.lastSubmitted = { name: name, score: result.best };
             G.saveBest(result.best);
+            refreshSideBoard();
             let bestText = '🏆 最高分：' + result.best;
             if (result.best === score && score > state.previousBest) {
                 bestText = '🏆 新紀錄！';
@@ -509,7 +511,20 @@
         }
     }
 
+    // --- 遊戲旁邊常駐的排行榜 ---
+    const SIDE_REFRESH_MS = 10000;
+    function refreshSideBoard() {
+        // 分頁在背景時不更新，切回來時馬上更新
+        if (document.hidden) {
+            return;
+        }
+        G.renderLeaderboard($('.bday-side-lb .bday-lb'), playerName ? { name: playerName } : null, serverOpen === false);
+    }
+
     $(function () {
+        refreshSideBoard();
+        setInterval(refreshSideBoard, SIDE_REFRESH_MS);
+        $(document).on('visibilitychange', refreshSideBoard);
         buildGame();
         selectTool(0);
         // 回統測倒數的連結帶上身分，倒數網頁的排行榜才能標出自己、填問卷
