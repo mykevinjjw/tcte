@@ -31,7 +31,8 @@
 
     // --- 伺服器上的開放狀態 (開放日期由管理後台設定) ---
     const STATUS_REFRESH_MS = 60000;
-    let serverOpen = null; // null：還沒查到，main.js 會改用預設日期
+    let serverOpen = null; // 現在能不能玩 (無限期開放時每天都是 true)
+    let serverEvent = null; // 今天是不是活動日 (生日橫幅)；null：還沒查到，main.js 會改用預設日期
     let surveyOpen = false; // 遊戲結束後的小問卷 (後台可以關閉)
     // 剛開頁面時先等伺服器回覆一下，避免用預設日期先顯示遊戲按鈕、查到後又消失
     const STATUS_WAIT_MS = 3000;
@@ -43,8 +44,10 @@
     function refreshStatus() {
         G.request('/status').then(function (status) {
             serverOpen = status.open === true;
+            serverEvent = status.event === true;
             surveyOpen = status.survey === true;
             updateSurveyButton();
+            updatePanelTitle();
         }).catch(function () {
             // 查不到就維持上一次的結果
         }).then(function () {
@@ -54,7 +57,7 @@
 
     // undefined：還在等伺服器 (先不顯示)；null：查不到，main.js 改用預設日期
     window.isBirthdayGameOpen = function () {
-        return statusPending && serverOpen === null ? undefined : serverOpen;
+        return statusPending && serverEvent === null ? undefined : serverEvent;
     };
     refreshStatus();
     setInterval(refreshStatus, STATUS_REFRESH_MS);
@@ -122,6 +125,9 @@
                 panel.toggleClass('collapsed');
             });
             panel.on('click', '.bday-survey-btn', openSurvey);
+            panel.on('click', '.bday-play-btn', function () {
+                this.href = window.birthdayGameUrl();
+            });
             $('body').append(panel);
             placePanel();
             refreshPanel();
@@ -132,10 +138,28 @@
                 placeTimer = setTimeout(placePanel, 150);
             });
         }
-        panel.find('.bday-lb-panel-toggle').text(open ? '🏆 生日排行榜' : '🏆 生日排行榜 (已結束)');
+        updatePanelTitle();
+    };
+
+    // 標題、「去玩」按鈕與更新頻率看現在能不能玩 (無限期開放時每天都能玩)
+    let panelOpen = null;
+    function updatePanelTitle() {
+        const panel = $('#bday-lb-panel');
+        const open = serverOpen === true;
+        if (!panel.length || open === panelOpen) {
+            return;
+        }
+        panelOpen = open;
+        panel.find('.bday-lb-panel-toggle').text(open ? '🏆 小遊戲排行榜' : '🏆 小遊戲排行榜 (暫停中)');
+        panel.find('.bday-play-btn').remove();
+        if (open) {
+            $('<a class="bday-survey-btn bday-play-btn">🎮 去玩小遊戲</a>')
+                .attr('href', G.GAMES_URL + 'birthday/')
+                .insertAfter(panel.find('.bday-lb'));
+        }
         clearInterval(panelTimer);
         panelTimer = setInterval(refreshPanel, open ? PANEL_REFRESH_MS : PANEL_CLOSED_REFRESH_MS);
-    };
+    }
 
     window.hideBirthdayLeaderboard = function () {
         clearInterval(panelTimer);
@@ -160,7 +184,8 @@
         if (!panel.length) {
             return;
         }
-        const show = surveyOpen && serverOpen === false && readName() !== '';
+        // 伺服器已經排除活動日 (遊戲進行中不收問卷)
+        const show = surveyOpen && readName() !== '';
         let button = panel.find('.bday-survey-btn');
         if (show && !button.length) {
             button = $('<button type="button" class="bday-survey-btn">📝 填小問卷</button>').appendTo(panel);

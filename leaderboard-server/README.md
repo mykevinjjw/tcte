@@ -10,7 +10,7 @@
 | POST | `/names` | 登記暱稱 `{"name", "token"}`；已被其他裝置使用回 409 |
 | POST | `/scores` | 上傳 `{"name", "token", "score"}`，同暱稱只保留最高分，回傳 `{"rank", "best"}` |
 | GET | `/best?name=` | 某個暱稱目前的最高分 `{"best", "rank"}`（網站用它同步「最高分」） |
-| GET | `/status` | 現在是否開放 `{"open", "dates", "survey"}`（網站用它決定顯示小遊戲與問卷） |
+| GET | `/status` | `{"open", "event", "always", "dates", "survey"}`：`open` 現在能不能玩、`event` 今天是不是活動日（倒數網頁的橫幅）、`always` 是否無限期開放 |
 | POST | `/survey/load` | 讀自己填過的問卷 `{"name", "token"}` → `{"answers"}`；只有上傳過分數的暱稱本人能用 |
 | POST | `/survey` | 填問卷 `{"name", "token", "answers"}`，同暱稱重填會覆蓋 |
 | GET | `/health` | 健康檢查 |
@@ -81,7 +81,7 @@ ssh oci-a1 'sudo tar xzf /tmp/games-site.tgz -C /var/www/tcte-games --no-same-ow
 目前部署：`https://games.mykevin.dpdns.org/admin/`（`tcte-admin.service`，`127.0.0.1:8788`，`ADMIN_BASE_PATH=/admin`，nginx 設定 [nginx-games.conf](nginx-games.conf)）。舊網址 `https://tcteback.kevinjja.dpdns.org` 會轉址過去（[nginx-tcteback.conf](nginx-tcteback.conf)）。和 API 共用同一個 `scores.db`，功能：
 
 - 排行榜：看全部玩家、改分數（留空 = 從排行榜移除但保留暱稱）、解除綁定裝置（換手機時用）、刪除
-- 設定開放日期：存檔後網站與上傳限制立即生效
+- 設定開放日期（活動日）與「無限期開放」：勾選後每天都能玩、上傳，問卷在活動日以外都能填；存檔後立即生效
 - 玩家頁：點暱稱看這個人的每一次上傳、分數歷程圖、用過的裝置與 IP
 - 時間軸：每小時上傳次數、全場最高分演進與第一名換人紀錄、依日期的逐筆時間軸
 - 排行榜與上傳紀錄每 5 秒自動更新（正在輸入的欄位不會被蓋掉）

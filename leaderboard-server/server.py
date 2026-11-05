@@ -157,11 +157,23 @@ def init_db():
             conn.execute('ALTER TABLE scores RENAME TO scores_legacy')
 
 
-def is_open_date(conn):
-    if not BIRTHDAY_ONLY:
-        return True
+def always_open(conn):
+    """後台的「無限期開放」：每天都能玩 (預設關)"""
+    row = conn.execute("SELECT value FROM settings WHERE key = 'always_open'").fetchone()
+    return row is not None and row[0] == '1'
+
+
+def is_event_date(conn):
+    """今天是不是設定的開放日期 (生日活動；倒數網頁的祝福橫幅與問卷用它判斷)"""
     now = datetime.now(TAIPEI)
     return (now.month, now.day) in get_open_dates(conn)
+
+
+def is_open_date(conn):
+    """現在能不能玩、上傳分數"""
+    if not BIRTHDAY_ONLY or always_open(conn):
+        return True
+    return is_event_date(conn)
 
 
 def survey_enabled(conn):
@@ -171,8 +183,8 @@ def survey_enabled(conn):
 
 
 def is_survey_open(conn):
-    # 遊戲開放的日子不收問卷，結束後才開始
-    return survey_enabled(conn) and not is_open_date(conn)
+    # 活動日 (開放日期) 不收問卷，結束後才開始；無限期開放時其他日子都能填
+    return survey_enabled(conn) and not is_event_date(conn)
 
 
 def clean_text(value, limit):
@@ -312,8 +324,11 @@ class Handler(BaseHTTPRequestHandler):
             with sqlite3.connect(DB_PATH) as conn:
                 dates = get_open_dates(conn)
                 is_open = is_open_date(conn)
+                event = is_event_date(conn)
+                always = always_open(conn)
                 survey = is_survey_open(conn)
-            self.send_json(200, {'open': is_open, 'dates': ['%02d-%02d' % d for d in dates], 'survey': survey})
+            self.send_json(200, {'open': is_open, 'event': event, 'always': always,
+                                 'dates': ['%02d-%02d' % d for d in dates], 'survey': survey})
             return
         if url.path == '/best':
             # 某個暱稱目前在伺服器上的最高分 (管理後台可能改過)，沒有分數時 best 為 null

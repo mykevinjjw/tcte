@@ -14,7 +14,7 @@
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
-// --- 生日限定小遊戲：幼兒園照顧大作戰 (開放日期由管理後台設定) ---
+// --- 小遊戲：幼兒園照顧大作戰 (開放與否由管理後台設定) ---
 (function ($) {
 
     const G = window.TcteGames;
@@ -230,7 +230,7 @@
 
         $('#bday-game').html(
             '<div class="bday-game-panel">' +
-            '<h2 class="bday-game-title">🎂 幼兒園照顧大作戰</h2>' +
+            '<h2 class="bday-game-title">🧸 幼兒園照顧大作戰</h2>' +
             '<div class="bday-game-hud">' +
             '<span>⏱ <b id="bday-time">' + GAME_SECONDS + '</b></span>' +
             '<span>⭐ <b id="bday-score">0</b></span>' +
@@ -285,8 +285,8 @@
         if (!serverOpen) {
             $('#bday-overlay').html(
                 '<div class="bday-overlay-box">' +
-                '<p class="bday-overlay-big">🎂 生日小遊戲已結束</p>' +
-                '<p>謝謝大家來幫避雷針慶生！明年見 👋</p>' +
+                '<p class="bday-overlay-big">⏸️ 遊戲目前沒有開放</p>' +
+                '<p>謝謝大家來玩！下次開放再見 👋</p>' +
                 (best > 0 && playerName ? '<p class="bday-best">🏆 你的最高分：' + best + '</p>' : '') +
                 '<button type="button" class="bday-lb-btn">🏆 看排行榜</button>' +
                 '</div>'
@@ -295,7 +295,7 @@
         }
         $('#bday-overlay').html(
             '<div class="bday-overlay-box">' +
-            '<p class="bday-overlay-big">🎉 11/4 是避雷針的生日！</p>' +
+            '<p class="bday-overlay-big">🧸 幼兒園照顧大作戰</p>' +
             '<p>身為未來的幼保老師，今天要獨自照顧整班小朋友！</p>' +
             '<ul class="bday-rules">' +
             needs.map(function (need) {
@@ -492,7 +492,6 @@
             '<p class="bday-overlay-big">⭐ ' + state.score + ' 分</p>' +
             '<p class="bday-rating">' + getRating(state.score) + '</p>' +
             '<p class="bday-best">' + (isNewBest ? '🏆 新紀錄！' : '🏆 最高分：' + best) + '</p>' +
-            '<p>🎂 祝避雷針生日快樂！ 💖</p>' +
             (state.score > 0 ?
                 '<div class="bday-submit">' +
                 '<span class="bday-submit-msg"></span>' +

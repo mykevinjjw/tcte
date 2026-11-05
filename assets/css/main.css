@@ -826,6 +826,12 @@ body {
     cursor: pointer;
 }
 
+.bday-play-btn {
+    box-sizing: border-box;
+    text-align: center;
+    text-decoration: none;
+}
+
 .bday-survey-btn:hover {
     background: #ffd54f;
 }

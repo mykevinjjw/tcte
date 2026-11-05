@@ -419,6 +419,7 @@ def players_page(session, query):
     with db() as conn:
         dates = lb.get_open_dates(conn)
         is_open = lb.is_open_date(conn)
+        always = lb.always_open(conn)
         players = conn.execute(
             'SELECT id, name, token, score, created_at, updated_at FROM players'
             ' ORDER BY score IS NULL, score DESC, updated_at, id'
@@ -450,10 +451,12 @@ def players_page(session, query):
         '<div class="card"><h2>開放日期</h2>'
         '<form method="post" action="/settings/open-dates" class="row">%s'
         '<input type="text" name="dates" value="%s" placeholder="11-03,11-04" size="30">'
+        '<label><input type="checkbox" name="always" value="1"%s> 無限期開放 (每天都能玩)</label>'
         '<button type="submit">儲存</button></form>'
-        '<p class="muted">格式「月-日」，多個日期用逗號分隔，以台灣時間判斷。網站只在這些日期顯示小遊戲並接受上傳；'
-        '留空代表完全不開放。生日當天 (11/4) 的祝福橫幅不受影響。</p></div>'
-    ) % (csrf_input(session), e(date_text))
+        '<p class="muted">格式「月-日」，多個日期用逗號分隔，以台灣時間判斷。這些日期是活動日：倒數網頁顯示小遊戲橫幅、不收問卷。'
+        '沒勾「無限期開放」時只有活動日能玩並上傳分數；勾了以後每天都能玩，問卷在活動日以外都能填。'
+        '生日當天 (11/4) 的祝福橫幅不受影響。</p></div>'
+    ) % (csrf_input(session), e(date_text), ' checked' if always else '')
 
     # 同分同名次，下一個分數接著排不跳號 (例如 1、2、2、2、3)，和網站上的排行榜一致
     ranks = {}
@@ -1241,9 +1244,11 @@ class Handler(BaseHTTPRequestHandler):
                 self.redirect('/?msg=bad-dates')
                 return
             text = ','.join('%02d-%02d' % d for d in dates)
+            always = '1' if form.get('always') == '1' else '0'
             with lb.db_lock, db() as conn:
                 conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('open_dates', ?)", (text,))
-                log_admin(conn, ip, '-', '開放日期改為 %s' % (text or '(不開放)'))
+                conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('always_open', ?)", (always,))
+                log_admin(conn, ip, '-', '開放日期改為 %s%s' % (text or '(不開放)', '，無限期開放' if always == '1' else ''))
             self.redirect('/?msg=dates')
             return
 
