@@ -71,8 +71,38 @@
         return G.readName();
     }
 
+    // 倒數網頁的排行榜固定是 11/4 生日活動的最終結果 (assets/data/birthday-leaderboard.json)，
+    // 之後在遊戲網站玩的分數不會影響它
+    const FROZEN_URL = 'assets/data/birthday-leaderboard.json?v=20261105';
+    let frozenRows = null;
+    let frozenLoading = null;
     function renderLeaderboard(container, highlight) {
-        G.renderLeaderboard(container, highlight, serverOpen === false);
+        if (frozenRows) {
+            G.renderRows(container, frozenRows, highlight, true);
+            return;
+        }
+        if (container.is(':empty')) {
+            container.html('<p class="bday-lb-status">讀取排行榜中…</p>');
+        }
+        if (!frozenLoading) {
+            frozenLoading = fetch(FROZEN_URL).then(function (res) {
+                if (!res.ok) {
+                    throw new Error('not found');
+                }
+                return res.json();
+            }).then(function (data) {
+                frozenRows = data.rows || [];
+            }).catch(function () {
+                frozenLoading = null; // 下次再試
+            });
+        }
+        frozenLoading.then(function () {
+            if (frozenRows) {
+                G.renderRows(container, frozenRows, highlight, true);
+            } else if (!container.find('.bday-lb-list').length) {
+                container.html('<p class="bday-lb-status">排行榜暫時讀不到，等等再試試</p>');
+            }
+        });
     }
 
     // --- 頁面旁固定的排行榜 (開放期間由 main.js 開啟) ---
@@ -150,7 +180,7 @@
             return;
         }
         panelOpen = open;
-        panel.find('.bday-lb-panel-toggle').text(open ? '🏆 小遊戲排行榜' : '🏆 小遊戲排行榜 (暫停中)');
+        panel.find('.bday-lb-panel-toggle').text('🏆 11/4 生日排行榜');
         panel.find('.bday-play-btn').remove();
         if (open) {
             $('<a class="bday-survey-btn bday-play-btn">🎮 去玩小遊戲</a>')

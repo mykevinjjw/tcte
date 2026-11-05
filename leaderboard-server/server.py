@@ -51,7 +51,14 @@ MAX_EVENTS = 20000  # events 表最多保留的筆數
 
 TAIPEI = timezone(timedelta(hours=8))
 MAX_NAME_LENGTH = 12
-MAX_SCORE = 1500  # 60 秒內正常玩不可能超過的分數
+MAX_RAW_SCORE = 2000  # 一場 60 秒內正常玩不可能超過的分數 (加權前)
+# 難度：排行榜分數 = 遊戲分數 × 加權 (四捨五入)，所有難度共用一個排行榜；沒帶 level 的舊版網頁算普通
+LEVELS = {
+    'easy': ('簡單', 0.6),
+    'normal': ('普通', 1.0),
+    'hard': ('困難', 1.5),
+}
+MAX_SCORE = round(MAX_RAW_SCORE * max(w for _, w in LEVELS.values()))  # 排行榜上可能的最高分
 MAX_LIMIT = 100
 MAX_BODY_BYTES = 1024
 RATE_LIMIT_COUNT = 10  # 每個 IP 每分鐘最多登記暱稱 + 上傳分數的次數
@@ -450,11 +457,19 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         score = None
+        level_note = ''
         if path == '/scores':
-            score = data.get('score')
-            if isinstance(score, bool) or not isinstance(score, int) or not 0 <= score <= MAX_SCORE:
+            raw = data.get('score')
+            level = data.get('level', 'normal')
+            if level not in LEVELS:
+                self.send_json(400, {'error': '難度不正確'})
+                return
+            if isinstance(raw, bool) or not isinstance(raw, int) or not 0 <= raw <= MAX_RAW_SCORE:
                 self.send_json(400, {'error': '分數不正確'})
                 return
+            label, weight = LEVELS[level]
+            score = int(raw * weight + 0.5)
+            level_note = '%s %d 分 ×%g，' % (label, raw, weight)
         ip = self.client_ip()
         action = 'claim' if path == '/names' else 'score'
         if not allow_post(ip):
@@ -489,8 +504,8 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json(200, {'ok': True})
                 return
             higher = conn.execute('SELECT COUNT(DISTINCT score) FROM players WHERE score > ?', (best,)).fetchone()[0]
-            log_event(conn, ip, action, name, score, 201, '最高分 %d，第 %d 名' % (best, higher + 1), token)
-        self.send_json(201, {'rank': higher + 1, 'best': best})
+            log_event(conn, ip, action, name, score, 201, '%s最高分 %d，第 %d 名' % (level_note, best, higher + 1), token)
+        self.send_json(201, {'rank': higher + 1, 'best': best, 'score': score})
 
     def log_message(self, fmt, *args):
         print('%s - %s' % (self.client_ip(), fmt % args), flush=True)

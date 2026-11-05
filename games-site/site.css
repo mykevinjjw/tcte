@@ -220,6 +220,44 @@ a.game-card:hover {
     }
 }
 
+/* 難度選擇 */
+.bday-level-row {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    margin: 10px 0 4px;
+}
+
+.bday-level {
+    padding: 5px 16px;
+    border: 2px solid #f48fb1;
+    border-radius: 18px;
+    background: #ffffff;
+    color: #ad1457;
+    font-family: inherit;
+    font-size: 0.95rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.bday-level.selected {
+    background: #e91e63;
+    border-color: #e91e63;
+    color: #ffffff;
+}
+
+.bday-overlay-box .bday-level-info {
+    margin: 2px 0 6px;
+    font-size: 0.88rem;
+    opacity: 0.85;
+}
+
+.bday-kids[data-count="4"] {
+    grid-template-columns: repeat(2, 1fr);
+    max-width: 420px;
+    margin: 0 auto;
+}
+
 /* Birthday Mini Game */
 .bday-game {
     position: fixed;

@@ -67,7 +67,9 @@ GitHub Pages 是 HTTPS，瀏覽器不允許它呼叫 HTTP 的 API，所以需要
 - `/birthday/`：生日小遊戲「幼兒園照顧大作戰」，沒開放時只能看排行榜
 - `/admin/`：管理後台（見下面）
 
-統測倒數網頁只保留旁邊的排行榜與問卷（`assets/js/birthday-board.js`），開放期間的「生日限定小遊戲」按鈕會連到遊戲網站。兩個網站共用 `games-site/common.js`。兩邊的 localStorage 不互通，所以兩個網站之間的連結會在網址 `#player=暱稱,識別碼` 帶上這台裝置的身分，另一邊還沒有暱稱時才會採用。
+統測倒數網頁只保留旁邊的排行榜與問卷（`assets/js/birthday-board.js`），開放期間的「生日限定小遊戲」按鈕會連到遊戲網站。倒數網頁的排行榜固定是 11/4 生日活動的最終結果（[assets/data/birthday-leaderboard.json](../assets/data/birthday-leaderboard.json)），不再跟伺服器同步；遊戲網站上的排行榜才是即時的。
+
+遊戲有簡單／普通／困難三種難度（`games-site/birthday/game.js` 的 `LEVELS`），共用一個排行榜：網頁上傳 `{"score": 遊戲分數, "level"}`，伺服器存「遊戲分數 × 加權」（簡單 ×0.6、普通 ×1、困難 ×1.5，`server.py` 的 `LEVELS`）。兩個網站共用 `games-site/common.js`。兩邊的 localStorage 不互通，所以兩個網站之間的連結會在網址 `#player=暱稱,識別碼` 帶上這台裝置的身分，另一邊還沒有暱稱時才會採用。
 
 更新遊戲網站：
 

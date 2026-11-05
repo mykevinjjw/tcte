@@ -141,36 +141,41 @@
 
     const LEADERBOARD_SIZE = 100; // 伺服器最多回傳 100 位
 
-    // closed：遊戲沒開放時不用叫大家來搶第一
+    // 把名單畫進 container (rows 依分數由高到低)；closed：遊戲沒開放時不用叫大家來搶第一
+    function renderRows(container, rows, highlight, closed) {
+        if (rows.length === 0) {
+            container.html('<p class="bday-lb-status">' +
+                (closed ? '還沒有人上榜' : '還沒有人上榜，快來搶第一！') + '</p>');
+            return;
+        }
+        const list = $('<ol class="bday-lb-list"></ol>');
+        let rank = 0;
+        rows.forEach(function (row, i) {
+            // 同分同名次，下一個分數接著排不跳號 (例如 1、2、2、2、3)
+            if (i === 0 || row.score !== rows[i - 1].score) {
+                rank += 1;
+            }
+            const item = $('<li></li>');
+            $('<span class="bday-lb-rank"></span>').text(['🥇', '🥈', '🥉'][rank - 1] || rank).appendTo(item);
+            $('<span class="bday-lb-name"></span>').text(row.name).appendTo(item);
+            $('<span class="bday-lb-score"></span>').text(row.score).appendTo(item);
+            // 暱稱不分大小寫不會重複，用暱稱找自己那一列
+            if (highlight && row.name.toLowerCase() === highlight.name.toLowerCase()) {
+                item.addClass('me');
+            }
+            list.append(item);
+        });
+        container.empty().append(list);
+    }
+
+    // 從伺服器讀排行榜
     function renderLeaderboard(container, highlight, closed) {
         // 定時刷新時保留舊的名單，避免閃爍
         if (container.is(':empty')) {
             container.html('<p class="bday-lb-status">讀取排行榜中…</p>');
         }
         return request('/scores?limit=' + LEADERBOARD_SIZE).then(function (rows) {
-            if (rows.length === 0) {
-                container.html('<p class="bday-lb-status">' +
-                    (closed ? '還沒有人上榜' : '還沒有人上榜，快來搶第一！') + '</p>');
-                return;
-            }
-            const list = $('<ol class="bday-lb-list"></ol>');
-            let rank = 0;
-            rows.forEach(function (row, i) {
-                // 同分同名次，下一個分數接著排不跳號 (例如 1、2、2、2、3)
-                if (i === 0 || row.score !== rows[i - 1].score) {
-                    rank += 1;
-                }
-                const item = $('<li></li>');
-                $('<span class="bday-lb-rank"></span>').text(['🥇', '🥈', '🥉'][rank - 1] || rank).appendTo(item);
-                $('<span class="bday-lb-name"></span>').text(row.name).appendTo(item);
-                $('<span class="bday-lb-score"></span>').text(row.score).appendTo(item);
-                // 暱稱不分大小寫不會重複，用暱稱找自己那一列
-                if (highlight && row.name.toLowerCase() === highlight.name.toLowerCase()) {
-                    item.addClass('me');
-                }
-                list.append(item);
-            });
-            container.empty().append(list);
+            renderRows(container, rows, highlight, closed);
         }).catch(function () {
             if (container.find('.bday-lb-list').length) {
                 return;
@@ -190,6 +195,7 @@
         saveName: saveName,
         getToken: getToken,
         linkWithIdentity: linkWithIdentity,
+        renderRows: renderRows,
         renderLeaderboard: renderLeaderboard
     };
 

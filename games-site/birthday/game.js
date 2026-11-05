@@ -19,7 +19,16 @@
 
     const G = window.TcteGames;
     const GAME_SECONDS = 60;
-    const MAX_HEARTS = 3;
+    const LEVEL_KEY = 'tcte-game-level';
+
+    // 難度 (key 與 weight 要和 server.py 的 LEVELS 一致)：排行榜分數 = 遊戲分數 × weight
+    // wait：小朋友等多久會生氣 (開局 → 最後，毫秒)；spawn：多久冒出一個新需求
+    const LEVELS = {
+        easy: { label: '簡單', kids: 4, hearts: 5, wait: [8000, 5000], spawn: [2000, 1100], weight: 0.6 },
+        normal: { label: '普通', kids: 6, hearts: 3, wait: [6000, 3500], spawn: [1700, 750], weight: 1 },
+        hard: { label: '困難', kids: 9, hearts: 3, wait: [5000, 2800], spawn: [1300, 550], weight: 1.5 }
+    };
+    const LEVEL_ORDER = ['easy', 'normal', 'hard'];
 
     // emoji 沒有尿布，自己畫一個 (大小跟 emoji 一樣是 1em)
     const DIAPER_ICON =
@@ -45,8 +54,31 @@
         { name: '阿寶', face: '👶' },
         { name: '妞妞', face: '👧' },
         { name: '小胖', face: '👦' },
-        { name: '樂樂', face: '👶' }
+        { name: '樂樂', face: '👶' },
+        { name: '小芳', face: '👧' },
+        { name: '豆豆', face: '👦' },
+        { name: '圓圓', face: '👶' }
     ];
+
+    function readLevel() {
+        let level = '';
+        try {
+            level = localStorage.getItem(LEVEL_KEY) || '';
+        } catch (e) {
+            level = '';
+        }
+        return LEVELS[level] ? level : 'normal';
+    }
+
+    function saveLevel(level) {
+        try {
+            localStorage.setItem(LEVEL_KEY, level);
+        } catch (e) {
+            // 無法儲存時下次用普通
+        }
+    }
+
+    let level = readLevel();
 
     let state = null;
     let tickTimer = null;
@@ -184,8 +216,8 @@
         msg.removeClass('ok').text('上傳分數中…');
 
         const name = playerName;
-        const score = state.score;
-        G.postJson('/scores', { name: name, score: score, token: G.getToken() }).then(function (result) {
+        const score = state.boardScore;
+        G.postJson('/scores', { name: name, score: state.score, level: state.level, token: G.getToken() }).then(function (result) {
             state.lastSubmitted = { name: name, score: result.best };
             G.saveBest(result.best);
             refreshSideBoard();
@@ -209,9 +241,10 @@
         return from + (to - from) * progress;
     }
 
-    function buildGame() {
+    // 依難度畫出這一局的小朋友
+    function renderKids() {
         let kidsHtml = '';
-        kids.forEach(function (kid, i) {
+        kids.slice(0, LEVELS[level].kids).forEach(function (kid, i) {
             kidsHtml +=
                 '<button type="button" class="bday-kid" data-index="' + i + '">' +
                 '<span class="bday-kid-bubble"></span>' +
@@ -220,6 +253,10 @@
                 '<span class="bday-kid-timer"><i></i></span>' +
                 '</button>';
         });
+        $('#bday-game .bday-kids').attr('data-count', LEVELS[level].kids).html(kidsHtml);
+    }
+
+    function buildGame() {
 
         let toolsHtml = '';
         needs.forEach(function (need, i) {
@@ -240,7 +277,7 @@
             '<span id="bday-combo" class="bday-combo"></span>' +
             '</div>' +
             '<div class="bday-game-stage">' +
-            '<div class="bday-kids">' + kidsHtml + '</div>' +
+            '<div class="bday-kids"></div>' +
             '</div>' +
             '<div class="bday-tools">' + toolsHtml + '</div>' +
             '<p class="bday-hint">先選照顧工具，再點需要幫忙的小朋友（鍵盤 1~5 也能選工具）</p>' +
@@ -248,6 +285,7 @@
             '</div>'
         );
 
+        renderKids();
         const game = $('#bday-game');
         game.on('click', '.bday-tool', function () {
             selectTool(parseInt($(this).data('index'), 10));
@@ -262,6 +300,12 @@
         game.on('click', '.bday-submit-btn', uploadScore);
         game.on('click', '.bday-name-edit', function () {
             renderNameRow(true);
+        });
+        game.on('click', '.bday-level', function () {
+            level = $(this).data('level');
+            saveLevel(level);
+            renderLevelRow();
+            renderKids();
         });
         game.on('keydown', '.bday-name', function (e) {
             if (e.key === 'Enter') {
@@ -305,6 +349,8 @@
             }).join('') +
             '</ul>' +
             '<p>沒有及時照顧，家長滿意度 ❤️ 就會下降，連續照顧對了還有加分！</p>' +
+            '<div class="bday-level-row"></div>' +
+            '<p class="bday-level-info"></p>' +
             '<p class="bday-best intro"' + (best > 0 ? '>🏆 最高分：' + best : ' style="display:none">') + '</p>' +
             '<div class="bday-submit bday-name-row"></div>' +
             '<p class="bday-submit-msg"></p>' +
@@ -313,28 +359,44 @@
             '</div>'
         ).css('display', 'flex');
         renderNameRow(false);
+        renderLevelRow();
         syncBest();
+    }
+
+    function renderLevelRow() {
+        const row = $('#bday-overlay .bday-level-row');
+        row.html(LEVEL_ORDER.map(function (key) {
+            return '<button type="button" class="bday-level' + (key === level ? ' selected' : '') +
+                '" data-level="' + key + '">' + LEVELS[key].label + '</button>';
+        }).join(''));
+        const info = LEVELS[level];
+        $('#bday-overlay .bday-level-info').text(
+            info.kids + ' 位小朋友、' + info.hearts + ' 顆愛心，排行榜分數 ×' + info.weight);
     }
 
     function startGame() {
         const now = performance.now();
+        const info = LEVELS[level];
+        renderKids();
         state = {
             running: true,
+            level: level,
+            info: info,
             score: 0,
             combo: 0,
-            hearts: MAX_HEARTS,
+            hearts: info.hearts,
             startAt: now,
             endAt: now + GAME_SECONDS * 1000,
             nextSpawnAt: now + 400,
             selectedTool: state ? state.selectedTool : 0,
-            kids: kids.map(function () {
+            kids: kids.slice(0, info.kids).map(function () {
                 return { need: null, since: 0, deadline: 0, moodUntil: 0, moodFace: '' };
             })
         };
         $('#bday-overlay').hide().empty();
         selectTool(state.selectedTool);
         renderHud();
-        kids.forEach(function (kid, i) {
+        state.kids.forEach(function (kid, i) {
             renderKid(i, now);
         });
         clearInterval(tickTimer);
@@ -370,9 +432,9 @@
                 const kid = state.kids[free[Math.floor(Math.random() * free.length)]];
                 kid.need = Math.floor(Math.random() * needs.length);
                 kid.since = now;
-                kid.deadline = now + lerp(6000, 3500, progress);
+                kid.deadline = now + lerp(state.info.wait[0], state.info.wait[1], progress);
             }
-            state.nextSpawnAt = now + lerp(1700, 750, progress);
+            state.nextSpawnAt = now + lerp(state.info.spawn[0], state.info.spawn[1], progress);
         }
 
         state.kids.forEach(function (kid, i) {
@@ -457,7 +519,7 @@
 
     function renderHud() {
         $('#bday-score').text(state.score);
-        $('#bday-hearts').text('❤️'.repeat(state.hearts) + '🤍'.repeat(MAX_HEARTS - state.hearts));
+        $('#bday-hearts').text('❤️'.repeat(state.hearts) + '🤍'.repeat(state.info.hearts - state.hearts));
         $('#bday-combo').text(state.combo >= 2 ? '連擊 x' + state.combo : '');
     }
 
@@ -480,11 +542,13 @@
         state.running = false;
         clearInterval(tickTimer);
 
+        // 排行榜分數 = 遊戲分數 × 難度加權 (伺服器也用同樣的方式計算)
+        state.boardScore = Math.round(state.score * state.info.weight);
         const best = G.readBest();
-        const isNewBest = state.score > best;
+        const isNewBest = state.boardScore > best;
         state.previousBest = best;
         if (isNewBest) {
-            G.saveBest(state.score);
+            G.saveBest(state.boardScore);
         }
 
         const reason = state.hearts <= 0 ? '家長滿意度用完了…' : '放學囉！';
@@ -492,9 +556,11 @@
             '<div class="bday-overlay-box">' +
             '<p class="bday-player"></p>' +
             '<p class="bday-overlay-big">⭐ ' + state.score + ' 分</p>' +
-            '<p class="bday-rating">' + getRating(state.score) + '</p>' +
+            '<p class="bday-level-info">' + state.info.label + '：' + state.score + ' × ' + state.info.weight +
+            ' = 排行榜 <b>' + state.boardScore + '</b> 分</p>' +
+            '<p class="bday-rating">' + getRating(state.boardScore) + '</p>' +
             '<p class="bday-best">' + (isNewBest ? '🏆 新紀錄！' : '🏆 最高分：' + best) + '</p>' +
-            (state.score > 0 ?
+            (state.boardScore > 0 ?
                 '<div class="bday-submit">' +
                 '<span class="bday-submit-msg"></span>' +
                 '<button type="button" class="bday-submit-btn">重新上傳</button>' +
@@ -506,7 +572,7 @@
         // 暱稱是玩家輸入的，用 text() 避免被當成 HTML
         $('#bday-overlay .bday-player').text(playerName + ' 老師，' + reason);
 
-        if (state.score > 0) {
+        if (state.boardScore > 0) {
             uploadScore();
         }
     }
