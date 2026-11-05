@@ -50,6 +50,8 @@ ADMIN_PASSWORD_HASH = os.environ.get('ADMIN_PASSWORD_HASH', '')
 COOKIE_SECURE = os.environ.get('ADMIN_COOKIE_SECURE', '1') == '1'
 # 1：不需要帳號密碼，任何能連到後台網址的人都能查看與操作 (站長自行決定的設定)
 NO_LOGIN = os.environ.get('ADMIN_NO_LOGIN', '0') == '1'
+# 後台放在網站的子路徑底下時設定 (例如 /admin)，nginx 轉送時會把這段拿掉，這裡負責把連結補回去
+BASE_PATH = os.environ.get('ADMIN_BASE_PATH', '').rstrip('/')
 
 COOKIE_NAME = 'tcte_admin'
 SESSION_SECONDS = 12 * 60 * 60
@@ -1069,6 +1071,8 @@ class Handler(BaseHTTPRequestHandler):
         return ''
 
     def send_body(self, status, body, content_type='text/html; charset=utf-8', headers=None):
+        if BASE_PATH and isinstance(body, str) and content_type.startswith('text/html'):
+            body = re.sub(r'\b(href|action|src)="/', r'\1="' + BASE_PATH + '/', body)
         data = body.encode('utf-8') if isinstance(body, str) else body
         self.send_response(status)
         self.send_header('Content-Type', content_type)
@@ -1086,7 +1090,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def redirect(self, location, cookie=None):
         self.send_response(303)
-        self.send_header('Location', location)
+        self.send_header('Location', BASE_PATH + location)
         self.send_header('Content-Length', '0')
         self.send_header('Cache-Control', 'no-store')
         if cookie:
@@ -1094,8 +1098,8 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def cookie(self, value, max_age):
-        return '%s=%s; Path=/; Max-Age=%d; HttpOnly; SameSite=Strict%s' % (
-            COOKIE_NAME, value, max_age, '; Secure' if COOKIE_SECURE else '')
+        return '%s=%s; Path=%s/; Max-Age=%d; HttpOnly; SameSite=Strict%s' % (
+            COOKIE_NAME, value, BASE_PATH, max_age, '; Secure' if COOKIE_SECURE else '')
 
     def read_form(self):
         try:

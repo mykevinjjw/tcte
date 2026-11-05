@@ -63,7 +63,7 @@ $(document).ready(function () {
         const month = now.getMonth() + 1;
         const day = now.getDate();
         const isBirthday = month === adminBirthday.month && day === adminBirthday.day;
-        // 小遊戲開放日期以管理後台的設定為準 (birthday-game.js 向伺服器查詢)，還沒查到時用預設日期
+        // 小遊戲開放日期以管理後台的設定為準 (birthday-board.js 向伺服器查詢)，還沒查到時用預設日期
         let gameOpen = typeof window.isBirthdayGameOpen === 'function' ? window.isBirthdayGameOpen() : null;
         if (gameOpen === undefined) {
             return; // 還在向伺服器查詢開放狀態，查到再顯示 (避免按鈕閃一下又消失)
@@ -85,7 +85,7 @@ $(document).ready(function () {
         birthdayMode = mode;
 
         $('#birthday-egg, #birthday-confetti').remove();
-        // 頁面旁固定的排行榜 (birthday-game.js)：遊戲關閉後也保留，只拿掉遊戲入口與祝福
+        // 頁面旁固定的排行榜 (birthday-board.js)：遊戲關閉後也保留，只拿掉遊戲入口與祝福
         if (typeof window.showBirthdayLeaderboard === 'function') {
             window.showBirthdayLeaderboard(gameOpen);
         }
@@ -102,15 +102,15 @@ $(document).ready(function () {
         }
         $('#date-status-message').after(
             '<div id="birthday-egg" class="birthday-egg" title="點我放彩帶！">' + message +
-            (gameOpen ? '<button type="button" class="birthday-game-btn">🎮 生日限定小遊戲</button>' : '') +
+            (gameOpen ? '<a class="birthday-game-btn" href="https://games.mykevin.dpdns.org/birthday/">🎮 生日限定小遊戲</a>' : '') +
             '</div>'
         );
 
-        // 開啟生日限定小遊戲 (birthday-game.js)
+        // 生日限定小遊戲在遊戲網站 (games.mykevin.dpdns.org)，連結帶上暱稱 (birthday-board.js)
         $('#birthday-egg .birthday-game-btn').on('click', function (e) {
             e.stopPropagation();
-            if (typeof window.openBirthdayGame === 'function') {
-                window.openBirthdayGame();
+            if (typeof window.birthdayGameUrl === 'function') {
+                this.href = window.birthdayGameUrl();
             }
         });
 

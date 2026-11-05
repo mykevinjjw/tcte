@@ -57,11 +57,28 @@ GitHub Pages 是 HTTPS，瀏覽器不允許它呼叫 HTTP 的 API，所以需要
 
      Oracle Linux 則用 `sudo firewall-cmd --permanent --add-service=http --add-service=https && sudo firewall-cmd --reload`。
 
-5. 確認 `https://你的網域/health` 回傳 `{"ok": true}` 後，把網域填進 `assets/js/birthday-game.js` 的 `LEADERBOARD_URL`。
+5. 確認 `https://你的網域/health` 回傳 `{"ok": true}` 後，把網域填進 `games-site/common.js` 的 `API_URL`。
+
+## 遊戲網站（games.mykevin.dpdns.org）
+
+遊戲本身放在 `https://games.mykevin.dpdns.org`（repo 的 [games-site/](../games-site/)，靜態檔案放在 A1 的 `/var/www/tcte-games`，nginx 設定 [nginx-games.conf](nginx-games.conf)）：
+
+- `/`：遊戲主頁，列出所有小遊戲（新增遊戲就在 `games-site/` 加一個資料夾，主頁加一張卡片）
+- `/birthday/`：生日小遊戲「幼兒園照顧大作戰」，沒開放時只能看排行榜
+- `/admin/`：管理後台（見下面）
+
+統測倒數網頁只保留旁邊的排行榜與問卷（`assets/js/birthday-board.js`），開放期間的「生日限定小遊戲」按鈕會連到遊戲網站。兩個網站共用 `games-site/common.js`。兩邊的 localStorage 不互通，所以兩個網站之間的連結會在網址 `#player=暱稱,識別碼` 帶上這台裝置的身分，另一邊還沒有暱稱時才會採用。
+
+更新遊戲網站：
+
+```bash
+tar czf /tmp/games-site.tgz -C games-site . && scp /tmp/games-site.tgz oci-a1:/tmp/
+ssh oci-a1 'sudo tar xzf /tmp/games-site.tgz -C /var/www/tcte-games --no-same-owner && sudo restorecon -R /var/www/tcte-games'
+```
 
 ## 管理後台（admin.py）
 
-目前部署：`https://tcteback.kevinjja.dpdns.org`（`tcte-admin.service`，`127.0.0.1:8788`，nginx 設定 [nginx-tcteback.conf](nginx-tcteback.conf)）。和 API 共用同一個 `scores.db`，功能：
+目前部署：`https://games.mykevin.dpdns.org/admin/`（`tcte-admin.service`，`127.0.0.1:8788`，`ADMIN_BASE_PATH=/admin`，nginx 設定 [nginx-games.conf](nginx-games.conf)）。舊網址 `https://tcteback.kevinjja.dpdns.org` 會轉址過去（[nginx-tcteback.conf](nginx-tcteback.conf)）。和 API 共用同一個 `scores.db`，功能：
 
 - 排行榜：看全部玩家、改分數（留空 = 從排行榜移除但保留暱稱）、解除綁定裝置（換手機時用）、刪除
 - 設定開放日期：存檔後網站與上傳限制立即生效
@@ -83,11 +100,11 @@ printf 'ADMIN_USER=admin
 ADMIN_PASSWORD_HASH=%s
 ' "$H" | sudo tee /etc/tcte-admin.env >/dev/null && sudo chmod 600 /etc/tcte-admin.env
 sudo cp tcte-admin.service /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl enable --now tcte-admin
-sudo cp nginx-tcteback.conf /etc/nginx/conf.d/tcteback.conf && sudo systemctl reload nginx
-sudo certbot --nginx -d tcteback.kevinjja.dpdns.org --redirect
+sudo cp nginx-games.conf /etc/nginx/conf.d/games.conf && sudo systemctl reload nginx
+sudo certbot --nginx -d games.mykevin.dpdns.org --redirect
 ```
 
-目前 `tcte-admin.service` 設定 `ADMIN_NO_LOGIN=1`：**不需要帳號密碼，任何知道網址的人都能查看與操作後台**（看到玩家 IP、改分數、刪玩家、改開放日期）。要恢復登入，把它改成 `0` 後執行 `sudo systemctl daemon-reload && sudo systemctl restart tcte-admin`。
+後台要用帳號密碼登入（`ADMIN_NO_LOGIN=0`）。設成 `1` 會變成免登入，任何知道網址的人都能查看與操作後台。
 
 A1 上第一次部署時產生的密碼存在 `/root/tcte-admin-password.txt`；改密碼就重新產生 `/etc/tcte-admin.env` 再 `sudo systemctl restart tcte-admin`。登入失敗 10 分鐘內 5 次會暫時鎖定該 IP，登入 12 小時後失效。
 

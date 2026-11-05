@@ -1,0 +1,73 @@
+<!--
+    TCTE Countdown  Copyright (C) 2025  mykevinjjw
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
+<!DOCTYPE html>
+<html lang="zh-Hant">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>小遊戲</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎮</text></svg>">
+    <link rel="stylesheet" href="site.css?v=1">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700&display=swap" rel="stylesheet">
+</head>
+
+<body>
+    <nav class="games-top">
+        <a class="games-countdown-link" href="https://mykevinjjw.github.io/tcte/">⏳ 統測倒數</a>
+    </nav>
+    <main class="games-main">
+        <h1>🎮 小遊戲</h1>
+        <p class="games-sub">讀書累了，來玩一下吧！</p>
+        <div class="games-list">
+            <a class="game-card" href="birthday/" data-status-game="birthday">
+                <span class="game-card-icon">🎂</span>
+                <h2>幼兒園照顧大作戰</h2>
+                <p>避雷針的生日限定小遊戲：60 秒內照顧整班小朋友，分數會上排行榜。</p>
+                <span class="game-card-status">查詢中…</span>
+            </a>
+            <div class="game-card soon">
+                <span class="game-card-icon">🧩</span>
+                <h2>更多遊戲</h2>
+                <p>敬請期待</p>
+            </div>
+        </div>
+    </main>
+    <footer class="games-footer">&copy; 2025 TCTE Countdown. Designed by 黃逸凱 (mykevinjjw).</footer>
+    <script src="https://code.jquery.com/jquery-3.6.2.min.js"></script>
+    <script src="common.js?v=1"></script>
+    <script>
+        (function ($) {
+            var G = window.TcteGames;
+            $('.games-countdown-link').on('click', function () {
+                this.href = G.linkWithIdentity(G.COUNTDOWN_URL);
+            });
+            // 生日小遊戲的開放狀態 (由管理後台設定日期)
+            G.request('/status').then(function (status) {
+                $('[data-status-game="birthday"] .game-card-status')
+                    .text(status.open ? '🎉 開放中' : '已結束，可以看排行榜')
+                    .toggleClass('open', status.open === true);
+            }).catch(function () {
+                $('[data-status-game="birthday"] .game-card-status').text('連不上伺服器');
+            });
+        })(jQuery);
+    </script>
+</body>
+
+</html>

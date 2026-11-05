@@ -58,7 +58,7 @@ RATE_LIMIT_COUNT = 10  # 每個 IP 每分鐘最多登記暱稱 + 上傳分數的
 RATE_LIMIT_WINDOW = 60
 TOKEN_PATTERN = re.compile(r'^[0-9a-f]{16,64}$')
 
-# --- 遊戲結束後的小問卷 (選項要和網站 birthday-game.js 的 SURVEY 一致) ---
+# --- 遊戲結束後的小問卷 (選項要和網站 assets/js/birthday-board.js 的 SURVEY 一致) ---
 MAX_SURVEY_BODY_BYTES = 8192
 SURVEY_TEXT_LENGTH = 200
 SURVEY_OTHER_LENGTH = 30
