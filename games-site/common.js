@@ -90,25 +90,37 @@
         return url.split('#')[0] + '#' + HASH_KEY + '=' + encodeURIComponent(name) + ',' + getToken();
     }
 
-    // 從網址帶過來的身分：這個網站還沒有暱稱時才採用，然後把網址上的 # 拿掉
+    // 從網址帶過來的身分，然後把網址上的 # 拿掉：
+    // #player=  一般連結帶的，這個網站還沒有暱稱時才採用
+    // #bridge=  bridge.html 從倒數網頁拿回來的原本身分 (遊戲搬家前的紀錄)，蓋掉這裡的暱稱
     function importIdentity() {
-        const match = location.hash.match(new RegExp('^#' + HASH_KEY + '=([^,]+),([0-9a-f]{32})$'));
+        const match = location.hash.match(/^#(player|bridge)=([^,]+),([0-9a-f]{32})$/);
         if (!match) {
+            if (location.hash === '#bridge=') {
+                clearHash(); // 倒數網頁那邊沒有紀錄
+            }
             return;
         }
-        if (!readName()) {
+        if (match[1] === 'bridge' || !readName()) {
             let name = '';
             try {
-                name = decodeURIComponent(match[1]);
+                name = decodeURIComponent(match[2]);
             } catch (e) {
                 name = '';
             }
             if (name) {
+                if (name !== readName() || match[3] !== storageGet(TOKEN_KEY)) {
+                    storageSet(BEST_KEY, ''); // 換了身分，最高分改由伺服器重新同步
+                }
                 saveName(name);
-                storageSet(TOKEN_KEY, match[2]);
+                storageSet(TOKEN_KEY, match[3]);
                 deviceToken = '';
             }
         }
+        clearHash();
+    }
+
+    function clearHash() {
         try {
             history.replaceState(null, '', location.pathname + location.search);
         } catch (e) {
@@ -117,12 +129,13 @@
     }
     importIdentity();
 
-    // 遊戲搬到新網址後，直接打新網址進來的人在這裡沒有暱稱 (localStorage 不互通)。
-    // 第一次進來時跳到倒數網頁的 bridge.html 讀出原本的暱稱與識別碼，再帶回來 (只跳一次)
+    // 遊戲搬到新網址後，原本的暱稱與裝置綁定還存在倒數網頁的網址 (localStorage 不互通)。
+    // 每台裝置第一次進遊戲網站時跳到倒數網頁的 bridge.html 讀出原本的身分再帶回來 (只跳一次)；
+    // 已經在新網址另外登記暱稱的人也會換回原本的暱稱
     const COUNTDOWN_URL = 'https://mykevinjjw.github.io/tcte/';
-    const BRIDGE_KEY = 'tcte-identity-bridged';
+    const BRIDGE_KEY = 'tcte-identity-bridged-2';
     function bridgeIdentity() {
-        if (location.origin === new URL(COUNTDOWN_URL).origin || readName() || storageGet(BRIDGE_KEY)) {
+        if (location.origin === new URL(COUNTDOWN_URL).origin || storageGet(BRIDGE_KEY)) {
             return false;
         }
         storageSet(BRIDGE_KEY, '1');

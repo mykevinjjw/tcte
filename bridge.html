@@ -66,9 +66,9 @@
             } catch (e) {
                 name = '';
             }
-            back = back.split('#')[0];
+            back = back.split('#')[0] + '#bridge=';
             if (name && /^[0-9a-f]{32}$/.test(token)) {
-                back += '#player=' + encodeURIComponent(name) + ',' + token;
+                back += encodeURIComponent(name) + ',' + token;
             }
             location.replace(back);
         })();
