@@ -1,0 +1,78 @@
+<!--
+    TCTE Countdown  Copyright (C) 2025  mykevinjjw
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
+<!DOCTYPE html>
+<html lang="zh-Hant">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex">
+    <title>載入中…</title>
+    <style>
+        body {
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(250deg, #3a7bd5, #3a6073);
+            color: #ffffff;
+            font-family: 'Noto Sans TC', sans-serif;
+        }
+    </style>
+</head>
+
+<body>
+    <p>載入中…</p>
+    <script>
+        // 遊戲網站 (games.mykevin.dpdns.org) 第一次開啟時會跳來這裡，
+        // 把這台裝置在倒數網頁記住的暱稱與識別碼帶回去 (遊戲搬家前的紀錄都存在這個網址)
+        (function () {
+            // 只把身分交給自己的遊戲網站，避免被其他網站拿走
+            var ALLOWED = ['https://games.mykevin.dpdns.org/', 'http://127.0.0.1:8791/'];
+            var match = location.hash.match(/^#return=(.+)$/);
+            var back = '';
+            try {
+                back = match ? decodeURIComponent(match[1]) : '';
+            } catch (e) {
+                back = '';
+            }
+            var ok = ALLOWED.some(function (prefix) {
+                return back.indexOf(prefix) === 0;
+            });
+            if (!ok) {
+                location.replace('./');
+                return;
+            }
+            var name = '';
+            var token = '';
+            try {
+                name = localStorage.getItem('tcte-birthday-game-name') || '';
+                token = localStorage.getItem('tcte-birthday-game-token') || '';
+            } catch (e) {
+                name = '';
+            }
+            back = back.split('#')[0];
+            if (name && /^[0-9a-f]{32}$/.test(token)) {
+                back += '#player=' + encodeURIComponent(name) + ',' + token;
+            }
+            location.replace(back);
+        })();
+    </script>
+</body>
+
+</html>

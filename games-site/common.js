@@ -117,6 +117,23 @@
     }
     importIdentity();
 
+    // 遊戲搬到新網址後，直接打新網址進來的人在這裡沒有暱稱 (localStorage 不互通)。
+    // 第一次進來時跳到倒數網頁的 bridge.html 讀出原本的暱稱與識別碼，再帶回來 (只跳一次)
+    const COUNTDOWN_URL = 'https://mykevinjjw.github.io/tcte/';
+    const BRIDGE_KEY = 'tcte-identity-bridged';
+    function bridgeIdentity() {
+        if (location.origin === new URL(COUNTDOWN_URL).origin || readName() || storageGet(BRIDGE_KEY)) {
+            return false;
+        }
+        storageSet(BRIDGE_KEY, '1');
+        if (storageGet(BRIDGE_KEY) !== '1') {
+            return false; // 無法儲存 (例如無痕模式擋掉)，不跳轉以免一直來回
+        }
+        location.replace(COUNTDOWN_URL + 'bridge.html#return=' + encodeURIComponent(location.href));
+        return true;
+    }
+    const bridging = bridgeIdentity();
+
     function request(path, options) {
         return fetch(API_URL + path, options).then(function (res) {
             if (res.ok) {
@@ -186,7 +203,8 @@
 
     window.TcteGames = {
         GAMES_URL: 'https://games.mykevin.dpdns.org/',
-        COUNTDOWN_URL: 'https://mykevinjjw.github.io/tcte/',
+        COUNTDOWN_URL: COUNTDOWN_URL,
+        bridging: bridging, // true：正在跳去倒數網頁拿暱稱，等等就會回來
         request: request,
         postJson: postJson,
         readBest: readBest,
