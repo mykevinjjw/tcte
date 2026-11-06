@@ -528,7 +528,11 @@ class Handler(BaseHTTPRequestHandler):
             score = int(raw * weight + 0.5)
             level_note = '%s%s %d 分 ×%g，' % (GAMES[game][0] + ' ' if game else '', label, raw, weight)
         ip = self.client_ip()
-        action = 'claim' if path == '/names' else (game or 'score')
+        # 紀錄的動作：生日遊戲 claim / score，其他遊戲 snake-claim / snake (後台依遊戲分開顯示)
+        if game:
+            action = game + '-claim' if path == '/names' else game
+        else:
+            action = 'claim' if path == '/names' else 'score'
         if not allow_post(ip):
             self.send_json(429, {'error': '太頻繁了，休息一下再試'})
             return

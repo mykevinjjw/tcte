@@ -87,10 +87,40 @@ STATUS_TEXT = {
 ACTION_TEXT = {
     'claim': '登記暱稱',
     'score': '上傳分數',
-    'snake': '貪吃蛇分數',
     'survey': '問卷',
     'admin': '後台操作',
 }
+# 幼兒園照顧大作戰 (生日遊戲) 的紀錄動作；其他遊戲是 <遊戲>-claim、<遊戲>、<遊戲>-admin
+BIRTHDAY_ACTIONS = ('claim', 'score', 'survey', 'admin')
+for _key in lb.GAMES:
+    ACTION_TEXT[_key + '-claim'] = '登記暱稱'
+    ACTION_TEXT[_key] = '上傳分數'
+    ACTION_TEXT[_key + '-admin'] = '後台操作'
+
+
+def game_actions(game):
+    return (game + '-claim', game, game + '-admin') if game else BIRTHDAY_ACTIONS
+
+
+def upload_action(game):
+    return game or 'score'
+
+
+def claim_action(game):
+    return game + '-claim' if game else 'claim'
+
+
+def is_admin_action(action):
+    return action == 'admin' or action.endswith('-admin')
+
+
+def game_prefix(game):
+    """後台網址：幼兒園照顧大作戰在根目錄，其他遊戲在 /<遊戲>/ 底下"""
+    return '/' + game if game else ''
+
+
+def clean_game(value):
+    return value if value in lb.GAMES else ''
 
 
 # --- 密碼與登入 ---
@@ -201,6 +231,9 @@ header nav { display: flex; flex-wrap: wrap; gap: 4px 14px; flex: 1; }
 header a { color: #cfd8dc; text-decoration: none; }
 header a.on { color: #fff; font-weight: 700; }
 header form { margin: 0; }
+nav.sub { display: flex; flex-wrap: wrap; gap: 4px 18px; padding: 8px 16px; background: #37474f; }
+nav.sub a { color: #cfd8dc; text-decoration: none; }
+nav.sub a.on { color: #fff; font-weight: 700; border-bottom: 2px solid var(--accent); }
 main { max-width: 1100px; margin: 0 auto; padding: 16px; }
 .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-bottom: 16px; }
 .card h2 { margin: 0 0 12px; font-size: 1.05rem; }
@@ -321,15 +354,18 @@ LIVE_JS = '''(function () {
 '''
 
 
-def layout(title, body, session=None, active=''):
+SECTIONS = [('', '🧸 幼兒園照顧大作戰')] + [(key, '🐍 ' + label) for key, (label, _) in lb.GAMES.items()]
+
+
+def layout(title, body, session=None, active='', game=None):
+    """game：這頁屬於哪個遊戲 ('' 是幼兒園照顧大作戰，None 是共用頁面，例如備份)"""
     nav = ''
     if session:
-        links = [('/', '排行榜', 'players'), ('/games', '其他遊戲', 'games'), ('/timeline', '時間軸', 'timeline'), ('/survey', '問卷', 'survey'),
-                 ('/events', '上傳紀錄', 'events'), ('/backup', '備份下載', 'backup')]
-        nav = '<nav>' + ''.join(
-            '<a href="%s"%s>%s</a>' % (href, ' class="on"' if key == active else '', label)
-            for href, label, key in links
-        ) + '</nav>' + ('' if NO_LOGIN else (
+        sections = ''.join(
+            '<a href="%s/"%s>%s</a>' % (game_prefix(key), ' class="on"' if key == game else '', e(label))
+            for key, label in SECTIONS
+        ) + '<a href="/backup"%s>💾 備份下載</a>' % (' class="on"' if active == 'backup' else '')
+        nav = '<nav>%s</nav>' % sections + ('' if NO_LOGIN else (
             '<form method="post" action="/logout"><input type="hidden" name="csrf" value="%s">'
             '<button type="submit">登出</button></form>' % e(session['csrf'])
         ))
@@ -338,8 +374,23 @@ def layout(title, body, session=None, active=''):
         '<meta name="viewport" content="width=device-width, initial-scale=1">'
         '<meta name="robots" content="noindex, nofollow">'
         '<title>%s｜TCTE 管理後台</title><style>%s</style>%s</head><body>'
-        '<header><h1>🎂 TCTE 管理後台</h1>%s</header><main>%s</main></body></html>'
-    ) % (e(title), STYLE, '<script src="/live.js" defer></script>' if session else '', nav, body)
+        '<header><h1>🎂 TCTE 管理後台</h1>%s</header>%s<main>%s</main></body></html>'
+    ) % (e(title), STYLE, '<script src="/live.js" defer></script>' if session else '', nav, sub_nav(session, active, game), body)
+
+
+def sub_nav(session, active, game):
+    """選好的遊戲底下的頁面"""
+    if not session or game is None:
+        return ''
+    p = game_prefix(game)
+    links = [(p + '/', '排行榜', 'players'), (p + '/timeline', '時間軸', 'timeline')]
+    if not game:
+        links.append(('/survey', '問卷', 'survey'))
+    links.append((p + '/events', '上傳紀錄', 'events'))
+    return '<nav class="sub">%s</nav>' % ''.join(
+        '<a href="%s"%s>%s</a>' % (href, ' class="on"' if key == active else '', label)
+        for href, label, key in links
+    )
 
 
 def flash_html(query):
@@ -422,8 +473,11 @@ def players_page(session, query):
         dates = lb.get_open_dates(conn)
         is_open = lb.is_open_date(conn)
         always = lb.always_open(conn)
+        # 只在其他遊戲登記過暱稱、沒玩過幼兒園照顧大作戰的人不列在這裡 (到那個遊戲的排行榜管理)
         players = conn.execute(
-            'SELECT id, name, token, score, created_at, updated_at FROM players'
+            'SELECT id, name, token, score, created_at, updated_at FROM players p'
+            ' WHERE score IS NOT NULL OR NOT EXISTS (SELECT 1 FROM game_scores g WHERE g.name = p.name)'
+            '  AND NOT EXISTS (SELECT 1 FROM events ev WHERE ev.name = p.name COLLATE NOCASE AND ev.action LIKE \'%-claim\')'
             ' ORDER BY score IS NULL, score DESC, updated_at, id'
         ).fetchall()
         plays = {
@@ -516,45 +570,68 @@ def players_page(session, query):
         ''.join(rows) or '<tr><td colspan="8" class="muted">還沒有玩家</td></tr>',
     )
 
-    return layout('排行榜', flash_html(query) + stats + dates_form + table, session, 'players')
+    return layout('排行榜', flash_html(query) + stats + dates_form + table, session, 'players', '')
 
 
-def games_page(session, query):
-    """其他遊戲 (貪吃蛇等) 的排行榜，可以刪除單筆分數"""
-    game = query.get('game', [''])[0]
-    if game not in lb.GAMES:
-        game = next(iter(lb.GAMES))
+def game_players_page(session, query, game):
+    """其他遊戲 (貪吃蛇等) 的排行榜：可以刪除單筆分數、解除裝置綁定"""
+    label = lb.GAMES[game][0]
+    action = upload_action(game)
     with db() as conn:
         rows = conn.execute(
-            'SELECT name, score, created_at, updated_at FROM game_scores WHERE game = ?'
-            ' ORDER BY score DESC, updated_at', (game,)
+            'SELECT g.name, g.score, g.created_at, g.updated_at, p.id, p.token FROM game_scores g'
+            ' LEFT JOIN players p ON p.name = g.name WHERE g.game = ?'
+            ' ORDER BY g.score DESC, g.updated_at', (game,)
         ).fetchall()
-    chips = '<div class="chips">' + ''.join(
-        '<a class="chip%s" href="/games?game=%s">%s</a>' % (' on' if key == game else '', e(key), e(label))
-        for key, (label, _) in lb.GAMES.items()
-    ) + '</div>'
+        plays = {
+            name.lower(): count for name, count in conn.execute(
+                'SELECT name, COUNT(*) FROM events WHERE action = ? AND status = 201 GROUP BY name COLLATE NOCASE', (action,))
+        }
+        today = datetime.now(lb.TAIPEI).strftime('%Y-%m-%d')
+        uploads_today = conn.execute(
+            'SELECT COUNT(*) FROM events WHERE action = ? AND status = 201 AND at LIKE ?', (action, today + '%')
+        ).fetchone()[0]
+        total_uploads = sum(plays.values())
+    stats = (
+        '<div class="stats" style="margin-bottom:16px" data-live="stats">'
+        '<div class="stat"><b>%d</b><span>有分數的玩家</span></div>'
+        '<div class="stat"><b>%d</b><span>總上傳次數</span></div>'
+        '<div class="stat"><b>%d</b><span>今天的上傳次數</span></div>'
+        '<div class="stat"><b class="open">隨時開放</b><span>不受開放日期限制</span></div>'
+        '</div>'
+    ) % (len(rows), total_uploads, uploads_today)
     lines = []
     rank = 0
     for i, row in enumerate(rows):
         if not i or rows[i - 1]['score'] != row['score']:
             rank += 1
+        count = plays.get(row['name'].lower(), 0)
+        unbind = ''
+        if row['token']:
+            unbind = (
+                '<form method="post" action="/players/unbind">%s<input type="hidden" name="id" value="%d">'
+                '<input type="hidden" name="back" value="%s">'
+                '<button type="submit" class="ghost">解除綁定</button></form>' % (csrf_input(session), row['id'], e(game)))
         lines.append(
-            '<tr><td>%d</td><td>%s</td><td>%d</td><td>%s</td><td>%s</td><td class="actions">'
-            '<form method="post" action="/games/delete" onsubmit="return confirm(\'確定刪除這筆分數？\')">%s'
-            '<input type="hidden" name="game" value="%s"><input type="hidden" name="name" value="%s">'
-            '<button type="submit" class="danger">刪除分數</button></form></td></tr>' % (
-                rank, name_link(row['name']), row['score'], e(fmt_time(row['created_at'])),
-                e(fmt_time(row['updated_at'])), csrf_input(session), e(game), e(row['name']))
+            '<tr><td>%d</td><td>%s</td><td>%d</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td class="actions">'
+            '<form method="post" action="/%s/delete" onsubmit="return confirm(\'確定刪除這筆分數？\')">%s'
+            '<input type="hidden" name="name" value="%s">'
+            '<button type="submit" class="danger">刪除分數</button></form>%s</td></tr>' % (
+                rank, name_link(row['name'], game), row['score'],
+                '<a href="/player?%s">%d 次</a>' % (e(urlencode({'name': row['name'], 'game': game})), count) if count else
+                '<span class="muted">0</span>',
+                '<code>%s…</code>' % e(row['token'][:8]) if row['token'] else '<span class="muted">未綁定</span>',
+                e(fmt_time(row['created_at'])), e(fmt_time(row['updated_at'])),
+                e(game), csrf_input(session), e(row['name']), unbind)
         )
     table = (
-        '<div class="card" data-live="games"><h2>%s排行榜 (共 %d 位，每 5 秒自動更新)</h2>%s'
-        '<div class="table-wrap"><table><tr><th>名次</th><th>暱稱</th><th>最高分</th><th>第一次上傳</th>'
-        '<th>最後刷新紀錄</th><th>操作</th></tr>%s</table></div>'
-        '<p class="muted">暱稱與裝置綁定和幼兒園照顧大作戰共用 (在「排行榜」頁解除綁定)。'
-        '這些遊戲不受開放日期限制，隨時都能玩。刪除分數後玩家可以重新上傳。</p></div>'
-    ) % (e(lb.GAMES[game][0]), len(rows), chips,
-         ''.join(lines) or '<tr><td colspan="6" class="muted">還沒有人上傳分數</td></tr>')
-    return layout('其他遊戲', flash_html(query) + table, session, 'games')
+        '<div class="card" data-live="players"><h2>%s排行榜 (共 %d 位，每 5 秒自動更新)</h2>'
+        '<div class="table-wrap"><table><tr><th>名次</th><th>暱稱</th><th>最高分</th><th>上傳次數</th><th>綁定裝置</th>'
+        '<th>第一次上傳</th><th>最後刷新紀錄</th><th>操作</th></tr>%s</table></div>'
+        '<p class="muted">分數是遊戲分數 × 難度加權 (簡單 ×0.6、普通 ×1、困難 ×1.5)。刪除分數後玩家可以重新上傳。'
+        '暱稱與裝置綁定是所有遊戲共用的，在這裡解除綁定也會影響其他遊戲。</p></div>'
+    ) % (e(label), len(rows), ''.join(lines) or '<tr><td colspan="8" class="muted">還沒有人上傳分數</td></tr>')
+    return layout(label + '排行榜', flash_html(query) + stats + table, session, 'players', game)
 
 
 # --- 圖表 (伺服器直接產生 SVG，滑鼠移到點或長條上會顯示詳細資料) ---
@@ -659,8 +736,9 @@ def legend(items):
         '<span><i style="background:%s"></i>%s</span>' % (color, e(label)) for color, label in items)
 
 
-def name_link(name):
-    return '<a href="/player?%s">%s</a>' % (e(urlencode({'name': name})), e(name))
+def name_link(name, game=''):
+    params = {'name': name, 'game': game} if game else {'name': name}
+    return '<a href="/player?%s">%s</a>' % (e(urlencode(params)), e(name))
 
 
 def score_text(score):
@@ -668,35 +746,42 @@ def score_text(score):
 
 
 def status_text(action, status):
-    if action in ('admin', 'survey'):
+    if action == 'survey' or is_admin_action(action):
         return '完成'
     return STATUS_TEXT.get(status, status)
 
 
-def player_page(session, name):
+def player_page(session, name, game=''):
+    actions = game_actions(game)
     with db() as conn:
         player = conn.execute('SELECT id, name, token, score, created_at, updated_at FROM players'
                               ' WHERE name = ?', (name,)).fetchone()
         events = conn.execute(
             'SELECT id, at, ip, action, name, score, status, note, token FROM events'
-            ' WHERE name = ? COLLATE NOCASE ORDER BY id', (name,)
+            ' WHERE name = ? COLLATE NOCASE AND action IN (%s) ORDER BY id' % ','.join('?' * len(actions)),
+            (name,) + tuple(actions)
         ).fetchall()
+        best = player['score'] if player else None
+        if game:
+            row = conn.execute('SELECT score FROM game_scores WHERE game = ? AND name = ?', (game, name)).fetchone()
+            best = row[0] if row else None
         rank = None
-        if player and player['score'] is not None:
-            rank = conn.execute('SELECT COUNT(DISTINCT score) FROM players WHERE score > ?', (player['score'],)).fetchone()[0] + 1
+        if best is not None:
+            rank = (lb.game_rank(conn, game, best) if game else
+                    conn.execute('SELECT COUNT(DISTINCT score) FROM players WHERE score > ?', (best,)).fetchone()[0] + 1)
     if not player and not events:
         return None
     title = player['name'] if player else name
 
-    uploads = [ev for ev in events if ev['action'] == 'score' and ev['status'] == 201]
+    uploads = [ev for ev in events if ev['action'] == upload_action(game) and ev['status'] == 201]
     scores = [ev['score'] for ev in uploads]
     played = [parse_time(ev['at']) for ev in uploads]
     devices = {ev['token'] for ev in events if ev['token']}
-    ips = {ev['ip'] for ev in events if ev['action'] != 'admin'}
+    ips = {ev['ip'] for ev in events if not is_admin_action(ev['action'])}
 
     stats = '<div class="stats" style="margin-bottom:16px" data-live="player-stats">%s</div>' % ''.join(
         '<div class="stat"><b>%s</b><span>%s</span></div>' % item for item in [
-            (e(player['score']) if player and player['score'] is not None else '—', '目前最高分'),
+            (e(best) if best is not None else '—', '目前最高分'),
             ('第 %d 名' % rank if rank else '—', '目前名次'),
             (len(uploads), '上傳次數'),
             (round(sum(scores) / len(scores)) if scores else '—', '平均分數'),
@@ -740,7 +825,7 @@ def player_page(session, name):
                 '第 %s 名' % match.group(1) if match else '',
                 '<code>%s</code>' % e(ev['token'][:8]) if ev['token'] else '',
                 e(ev['ip']),
-                e(ev['note'] if ev['action'] == 'admin' else status_text(ev['action'], ev['status'])),
+                e(ev['note'] if is_admin_action(ev['action']) else status_text(ev['action'], ev['status'])),
             ))
     table = (
         '<div class="card" data-live="player-events"><h2>完整紀錄 (共 %d 筆，最新在上)</h2>'
@@ -758,25 +843,28 @@ def player_page(session, name):
     else:
         info = '<p class="muted">這個暱稱已經不在排行榜上 (可能被刪除)，以下是留下來的紀錄。</p>'
     body = (
-        '<p><a href="/">← 回排行榜</a></p><div class="card"><h2>👩‍🏫 %s</h2>%s</div>%s'
+        '<p><a href="%s/">← 回排行榜</a></p><div class="card"><h2>%s %s</h2>%s</div>%s'
         '<div class="card" data-live="player-chart"><h2>分數歷程</h2>%s</div>%s'
-    ) % (e(title), info, stats, chart_html, table)
-    return layout(title, body, session, 'players')
+    ) % (game_prefix(game), '🐍' if game else '👩‍🏫', e(title), info, stats, chart_html, table)
+    return layout(title, body, session, 'players', game)
 
 
-def timeline_page(session, query):
+def timeline_page(session, query, game=''):
+    actions = game_actions(game)
     with db() as conn:
-        rows = conn.execute('SELECT id, at, ip, action, name, score, status, note FROM events ORDER BY id').fetchall()
+        rows = conn.execute(
+            'SELECT id, at, ip, action, name, score, status, note FROM events WHERE action IN (%s) ORDER BY id'
+            % ','.join('?' * len(actions)), actions).fetchall()
     events = [(ev, parse_time(ev['at'])) for ev in rows]
     events = [(ev, dt) for ev, dt in events if dt]
     if not events:
-        return layout('時間軸', '<div class="card">還沒有任何紀錄</div>', session, 'timeline')
+        return layout('時間軸', '<div class="card">還沒有任何紀錄</div>', session, 'timeline', game)
 
     # 依時間順序重播一次：每個人的最高分、全場最高分與第一名換人的時間點
     best_by_name, top, top_line, top_changes, marks = {}, None, [], [], {}
     uploads = []
     for ev, dt in events:
-        if ev['action'] != 'score' or ev['status'] != 201:
+        if ev['action'] != upload_action(game) or ev['status'] != 201:
             continue
         uploads.append((ev, dt))
         key = ev['name'].lower()
@@ -822,7 +910,7 @@ def timeline_page(session, query):
             chart.parts.append(dot(chart, dt, score, COLOR_BEST, '%s　%s 拿下第一名 (%d 分)' % (
                 dt.strftime('%m/%d %H:%M:%S'), name, score), True))
         change_rows = ''.join(
-            '<tr><td>%s</td><td>%s</td><td>%d</td></tr>' % (e(dt.strftime('%m/%d %H:%M:%S')), name_link(name), score)
+            '<tr><td>%s</td><td>%s</td><td>%d</td></tr>' % (e(dt.strftime('%m/%d %H:%M:%S')), name_link(name, game), score)
             for dt, name, score in reversed(top_changes))
         top_html = chart.render('全場最高分演進') + (
             '<h3>第一名換人紀錄</h3><div class="table-wrap"><table><tr><th>時間</th><th>新的第一名</th><th>分數</th></tr>'
@@ -832,8 +920,8 @@ def timeline_page(session, query):
     days = sorted({dt.date() for _, dt in events}, reverse=True)
     picked = query.get('date', [''])[0]
     day = next((d for d in days if d.isoformat() == picked), days[0])
-    chips = ''.join('<a class="chip%s" href="/timeline?date=%s">%s (%s)</a>' % (
-        ' on' if d == day else '', d.isoformat(), d.strftime('%m/%d'), WEEKDAYS[d.weekday()]) for d in days)
+    chips = ''.join('<a class="chip%s" href="%s/timeline?date=%s">%s (%s)</a>' % (
+        ' on' if d == day else '', game_prefix(game), d.isoformat(), d.strftime('%m/%d'), WEEKDAYS[d.weekday()]) for d in days)
     items, current_hour, count = [], None, 0
     for ev, dt in reversed(events):
         if dt.date() != day:
@@ -843,14 +931,17 @@ def timeline_page(session, query):
             current_hour = dt.hour
             items.append('<li class="hour">%02d:00</li>' % dt.hour)
         mark = marks.get(ev['id'], '')
-        if ev['action'] == 'score' and ev['status'] == 201:
+        if ev['action'] == upload_action(game) and ev['status'] == 201:
             what = '上傳 <b>%d</b> 分' % ev['score']
-        elif ev['action'] == 'claim':
+        elif ev['action'] == upload_action(game):
+            what = '上傳失敗：' + e(status_text(ev['action'], ev['status']))
+        elif ev['action'] == claim_action(game):
             what = '登記暱稱' if ev['status'] == 200 else '想用這個暱稱，但已經有人用了'
         else:
             what = '後台：' + e(ev['note'])
         items.append('<li class="%s"><time>%s</time>%s<span>%s</span>%s</li>' % (
-            mark or ev['action'], dt.strftime('%H:%M:%S'), name_link(ev['name']) if ev['name'] != '-' else '<span></span>',
+            mark or ('admin' if is_admin_action(ev['action']) else 'claim' if ev['action'] == claim_action(game) else ev['action']),
+            dt.strftime('%H:%M:%S'), name_link(ev['name'], game) if ev['name'] != '-' else '<span></span>',
             what, {'top': ' <span class="badge top">🏆 全場最高分</span>',
                    'best': ' <span class="badge">⭐ 個人新紀錄</span>'}.get(mark, '')))
 
@@ -868,7 +959,7 @@ def timeline_page(session, query):
         '<div class="card" data-live="timeline-feed"><h2>逐筆時間軸</h2><div class="chips">%s</div>'
         '<p class="muted">這天共 %d 筆紀錄，最新在上。點暱稱可以看這個人的完整紀錄。</p><ul class="feed">%s</ul></div>'
     ) % (stats, activity, top_html, chips, count, ''.join(items))
-    return layout('時間軸', body, session, 'timeline')
+    return layout('時間軸', body, session, 'timeline', game)
 
 
 def delete_page(session, player_id):
@@ -882,10 +973,12 @@ def delete_page(session, player_id):
         '<form method="post" action="/players/delete" class="row">%s<input type="hidden" name="id" value="%d">'
         '<button type="submit" class="danger">確定刪除</button><a class="button ghost" href="/">取消</a></form></div>'
     ) % (e(p['name']), e(p['score']) if p['score'] is not None else '未上傳', csrf_input(session), p['id'])
-    return layout('刪除玩家', body, session, 'players')
+    return layout('刪除玩家', body, session, 'players', '')
 
 
-def events_page(session, query):
+def events_page(session, query, game=''):
+    actions = game_actions(game)
+    p = game_prefix(game)
     action = query.get('action', [''])[0]
     name = query.get('name', [''])[0].strip()
     try:
@@ -893,8 +986,8 @@ def events_page(session, query):
     except ValueError:
         before = 0
 
-    where, params = [], []
-    if action in ACTION_TEXT:
+    where, params = ['action IN (%s)' % ','.join('?' * len(actions))], list(actions)
+    if action in actions:
         where.append('action = ?')
         params.append(action)
     if name:
@@ -904,28 +997,27 @@ def events_page(session, query):
         where.append('id < ?')
         params.append(before)
     sql = 'SELECT id, at, ip, action, name, score, status, note, token FROM events'
-    if where:
-        sql += ' WHERE ' + ' AND '.join(where)
+    sql += ' WHERE ' + ' AND '.join(where)
     sql += ' ORDER BY id DESC LIMIT ?'
     params.append(EVENTS_PAGE_SIZE)
     with db() as conn:
         events = conn.execute(sql, params).fetchall()
 
     options = '<option value="">全部動作</option>' + ''.join(
-        '<option value="%s"%s>%s</option>' % (key, ' selected' if key == action else '', label)
-        for key, label in ACTION_TEXT.items()
+        '<option value="%s"%s>%s</option>' % (key, ' selected' if key == action else '', ACTION_TEXT[key])
+        for key in actions
     )
     filters = (
-        '<div class="card"><form method="get" action="/events" class="row">'
+        '<div class="card"><form method="get" action="%s/events" class="row">'
         '<select name="action">%s</select>'
         '<input type="text" name="name" value="%s" placeholder="搜尋暱稱">'
-        '<button type="submit">篩選</button><a class="button ghost" href="/events">清除</a></form></div>'
-    ) % (options, e(name))
+        '<button type="submit">篩選</button><a class="button ghost" href="%s/events">清除</a></form></div>'
+    ) % (p, options, e(name), p)
 
     rows = ''.join(
         '<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>' % (
             e(fmt_time(ev['at'])), e(ev['ip']), '<code>%s</code>' % e(ev['token'][:8]) if ev['token'] else '',
-            e(ACTION_TEXT.get(ev['action'], ev['action'])), name_link(ev['name']) if ev['name'] != '-' else '-',
+            e(ACTION_TEXT.get(ev['action'], ev['action'])), name_link(ev['name'], game) if ev['name'] != '-' else '-',
             e(ev['score']) if ev['score'] is not None else '', e(status_text(ev['action'], ev['status'])),
             e(ev['note']),
         )
@@ -938,14 +1030,14 @@ def events_page(session, query):
             next_query['action'] = action
         if name:
             next_query['name'] = name
-        more = '<p><a class="button ghost" href="/events?%s">更早的紀錄 →</a></p>' % e(urlencode(next_query))
+        more = '<p><a class="button ghost" href="%s/events?%s">更早的紀錄 →</a></p>' % (p, e(urlencode(next_query)))
     table = (
         '<div class="card" data-live="events"><h2>上傳紀錄 (最新在上，最多保留 %d 筆，每 5 秒自動更新)</h2>'
         '<div class="table-wrap"><table>'
         '<tr><th>時間</th><th>IP</th><th>裝置</th><th>動作</th><th>暱稱</th><th>分數</th><th>結果</th><th>備註</th></tr>'
         '%s</table></div>%s</div>'
     ) % (lb.MAX_EVENTS, rows or '<tr><td colspan="8" class="muted">沒有紀錄</td></tr>', more)
-    return layout('上傳紀錄', filters + table, session, 'events')
+    return layout('上傳紀錄', filters + table, session, 'events', game)
 
 
 def load_surveys(conn):
@@ -1071,7 +1163,7 @@ def survey_page(session, query):
         '<th>前三名禮物建議</th><th>祝福</th><th>建議</th></tr>%s</table></div></div>'
     ) % (rows or '<tr><td colspan="10" class="muted">還沒有人填</td></tr>')
 
-    return layout('問卷', flash_html(query) + stats + toggle + summary + wall + table, session, 'survey')
+    return layout('問卷', flash_html(query) + stats + toggle + summary + wall + table, session, 'survey', '')
 
 
 def backup_page(session):
@@ -1172,6 +1264,23 @@ class Handler(BaseHTTPRequestHandler):
             self.redirect('/login')
             return
 
+        # 其他遊戲：/<遊戲>/、/<遊戲>/timeline、/<遊戲>/events
+        parts = url.path.strip('/').split('/')
+        if parts[0] in lb.GAMES and len(parts) <= 2:
+            game, page = parts[0], (parts[1] if len(parts) == 2 else '')
+            if page == '':
+                if not url.path.endswith('/'):
+                    self.redirect('/%s/' % game)
+                else:
+                    self.send_body(200, game_players_page(session, query, game))
+            elif page == 'timeline':
+                self.send_body(200, timeline_page(session, query, game))
+            elif page == 'events':
+                self.send_body(200, events_page(session, query, game))
+            else:
+                self.send_body(404, layout('找不到頁面', '<div class="card">找不到這個頁面</div>', session))
+            return
+
         if url.path == '/':
             self.send_body(200, players_page(session, query))
         elif url.path == '/players/delete':
@@ -1184,13 +1293,12 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 self.redirect('/?msg=missing')
         elif url.path == '/player':
-            page = player_page(session, query.get('name', [''])[0].strip())
+            page = player_page(session, query.get('name', [''])[0].strip(),
+                               clean_game(query.get('game', [''])[0]))
             if page:
                 self.send_body(200, page)
             else:
                 self.redirect('/?msg=missing')
-        elif url.path == '/games':
-            self.send_body(200, games_page(session, query))
         elif url.path == '/timeline':
             self.send_body(200, timeline_page(session, query))
         elif url.path == '/survey':
@@ -1302,17 +1410,18 @@ class Handler(BaseHTTPRequestHandler):
             self.redirect('/survey?msg=survey-%s' % ('on' if value == '1' else 'off'))
             return
 
-        if path == '/games/delete':
-            game = form.get('game', '')
+        parts = path.strip('/').split('/')
+        if len(parts) == 2 and parts[0] in lb.GAMES and parts[1] == 'delete':
+            game = parts[0]
             name = form.get('name', '')
             with lb.db_lock, db() as conn:
                 row = conn.execute('SELECT score FROM game_scores WHERE game = ? AND name = ?', (game, name)).fetchone()
                 if not row:
-                    self.redirect('/games?msg=missing')
+                    self.redirect('/%s/?msg=missing' % game)
                     return
                 conn.execute('DELETE FROM game_scores WHERE game = ? AND name = ?', (game, name))
-                log_admin(conn, ip, name, '刪除%s分數 %d' % (lb.GAMES.get(game, (game,))[0], row[0]))
-            self.redirect('/games?' + urlencode({'game': game, 'msg': 'game-deleted'}))
+                lb.log_event(conn, ip, game + '-admin', name, None, 200, '刪除分數 %d' % row[0])
+            self.redirect('/%s/?msg=game-deleted' % game)
             return
 
         if path not in ('/players/score', '/players/unbind', '/players/delete'):
@@ -1324,10 +1433,12 @@ class Handler(BaseHTTPRequestHandler):
             self.redirect('/?msg=missing')
             return
 
+        # 從其他遊戲的排行榜按的，做完回到那個遊戲
+        back = '/%s/' % form['back'] if form.get('back') in lb.GAMES else '/'
         with lb.db_lock, db() as conn:
             player = conn.execute('SELECT name, score FROM players WHERE id = ?', (player_id,)).fetchone()
             if not player:
-                self.redirect('/?msg=missing')
+                self.redirect(back + '?msg=missing')
                 return
             if path == '/players/score':
                 raw = form.get('score', '').strip()
@@ -1344,14 +1455,17 @@ class Handler(BaseHTTPRequestHandler):
                 msg = 'score'
             elif path == '/players/unbind':
                 conn.execute('UPDATE players SET token = NULL WHERE id = ?', (player_id,))
-                log_admin(conn, ip, player['name'], '解除裝置綁定')
+                if back != '/':
+                    lb.log_event(conn, ip, form['back'] + '-admin', player['name'], None, 200, '解除裝置綁定')
+                else:
+                    log_admin(conn, ip, player['name'], '解除裝置綁定')
                 msg = 'unbind'
             else:
                 conn.execute('DELETE FROM players WHERE id = ?', (player_id,))
                 conn.execute('DELETE FROM game_scores WHERE name = ?', (player['name'],))
                 log_admin(conn, ip, player['name'], '刪除玩家 (分數 %s)' % score_text(player['score']))
                 msg = 'deleted'
-        self.redirect('/?msg=' + msg)
+        self.redirect(back + '?msg=' + msg)
 
     def log_message(self, fmt, *args):
         print('%s - %s' % (self.client_ip(), fmt % args), flush=True)
