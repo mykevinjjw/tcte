@@ -596,7 +596,7 @@
         $(document).on('visibilitychange', refreshSideBoard);
         buildGame();
         selectTool(0);
-        // 回統測倒數的連結帶上身分，倒數網頁的排行榜才能標出自己、填問卷
+        // 回統測倒數的連結帶上身分 (倒數網址的 bridge.html 也用同一份身分)
         $('.games-countdown-link').on('click', function () {
             this.href = G.linkWithIdentity(G.COUNTDOWN_URL);
         });

@@ -22,7 +22,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>小遊戲</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎮</text></svg>">
-    <link rel="stylesheet" href="site.css?v=6">
+    <link rel="stylesheet" href="site.css?v=8">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700&display=swap" rel="stylesheet">
@@ -54,10 +54,16 @@
                 <p>敬請期待</p>
             </div>
         </div>
+        <section id="survey-entry" class="survey-entry" style="display:none">
+            <h2>📝 生日小遊戲問卷</h2>
+            <p class="survey-entry-note"></p>
+            <button type="button" class="bday-survey-btn">填小問卷</button>
+        </section>
     </main>
     <footer class="games-footer">&copy; 2025 TCTE Countdown. Designed by 黃逸凱 (mykevinjjw).</footer>
     <script src="https://code.jquery.com/jquery-3.6.2.min.js"></script>
     <script src="common.js?v=6"></script>
+    <script src="survey.js?v=1"></script>
     <script>
         (function ($) {
             var G = window.TcteGames;
