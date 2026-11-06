@@ -78,6 +78,8 @@ FLASH_MESSAGES = {
     'survey-on': '已開啟問卷 (遊戲開放的日子不會顯示)',
     'survey-off': '已關閉問卷',
     'game-deleted': '已刪除這筆遊戲分數',
+    'events-deleted': '已刪除選取的上傳紀錄',
+    'events-none': '沒有選取任何紀錄',
 }
 STATUS_TEXT = {
     200: '登記成功',
@@ -320,7 +322,7 @@ LIVE_JS = '''(function () {
         }
         var inputs = el.querySelectorAll('input');
         for (var i = 0; i < inputs.length; i++) {
-            if (inputs[i].value !== inputs[i].defaultValue) {
+            if (inputs[i].value !== inputs[i].defaultValue || inputs[i].checked !== inputs[i].defaultChecked) {
                 return true;
             }
         }
@@ -350,6 +352,28 @@ LIVE_JS = '''(function () {
     }
     setInterval(refresh, REFRESH_MS);
     document.addEventListener('visibilitychange', refresh);
+    // 頁面不能用 inline script (CSP)，確認視窗與全選在這裡處理
+    document.addEventListener('submit', function (ev) {
+        var form = ev.target;
+        if (form.hasAttribute('data-pick') && !form.querySelector('input.pick:checked')) {
+            ev.preventDefault();
+            alert('請先勾選要刪除的紀錄');
+            return;
+        }
+        var text = form.getAttribute('data-confirm');
+        if (text && !confirm(text)) {
+            ev.preventDefault();
+        }
+    });
+    document.addEventListener('change', function (ev) {
+        var box = ev.target;
+        if (box.classList && box.classList.contains('pick-all') && box.form) {
+            var picks = box.form.querySelectorAll('input.pick');
+            for (var i = 0; i < picks.length; i++) {
+                picks[i].checked = box.checked;
+            }
+        }
+    });
 })();
 '''
 
@@ -614,7 +638,7 @@ def game_players_page(session, query, game):
                 '<button type="submit" class="ghost">解除綁定</button></form>' % (csrf_input(session), row['id'], e(game)))
         lines.append(
             '<tr><td>%d</td><td>%s</td><td>%d</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td class="actions">'
-            '<form method="post" action="/%s/delete" onsubmit="return confirm(\'確定刪除這筆分數？\')">%s'
+            '<form method="post" action="/%s/delete" data-confirm="確定刪除這筆分數？">%s'
             '<input type="hidden" name="name" value="%s">'
             '<button type="submit" class="danger">刪除分數</button></form>%s</td></tr>' % (
                 rank, name_link(row['name'], game), row['score'],
@@ -1015,8 +1039,9 @@ def events_page(session, query, game=''):
     ) % (p, options, e(name), p)
 
     rows = ''.join(
-        '<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>' % (
-            e(fmt_time(ev['at'])), e(ev['ip']), '<code>%s</code>' % e(ev['token'][:8]) if ev['token'] else '',
+        '<tr><td><input type="checkbox" class="pick" name="id" value="%d" aria-label="選取"></td>'
+        '<td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>' % (
+            ev['id'], e(fmt_time(ev['at'])), e(ev['ip']), '<code>%s</code>' % e(ev['token'][:8]) if ev['token'] else '',
             e(ACTION_TEXT.get(ev['action'], ev['action'])), name_link(ev['name'], game) if ev['name'] != '-' else '-',
             e(ev['score']) if ev['score'] is not None else '', e(status_text(ev['action'], ev['status'])),
             e(ev['note']),
@@ -1031,13 +1056,20 @@ def events_page(session, query, game=''):
         if name:
             next_query['name'] = name
         more = '<p><a class="button ghost" href="%s/events?%s">更早的紀錄 →</a></p>' % (p, e(urlencode(next_query)))
+    back = urlencode([(k, v) for k, v in (('action', action), ('name', name), ('before', before or '')) if v])
     table = (
         '<div class="card" data-live="events"><h2>上傳紀錄 (最新在上，最多保留 %d 筆，每 5 秒自動更新)</h2>'
+        '<form method="post" action="%s/events/delete" data-pick data-confirm="確定刪除選取的紀錄？刪除後無法復原。">%s'
+        '<input type="hidden" name="back" value="%s">'
+        '<p class="row"><button type="submit" class="danger">🗑 刪除選取的紀錄</button>'
+        '<span class="muted">只刪紀錄，不會改到排行榜分數。勾選時暫停自動更新。</span></p>'
         '<div class="table-wrap"><table>'
-        '<tr><th>時間</th><th>IP</th><th>裝置</th><th>動作</th><th>暱稱</th><th>分數</th><th>結果</th><th>備註</th></tr>'
-        '%s</table></div>%s</div>'
-    ) % (lb.MAX_EVENTS, rows or '<tr><td colspan="8" class="muted">沒有紀錄</td></tr>', more)
-    return layout('上傳紀錄', filters + table, session, 'events', game)
+        '<tr><th><input type="checkbox" class="pick-all" aria-label="全選"></th>'
+        '<th>時間</th><th>IP</th><th>裝置</th><th>動作</th><th>暱稱</th><th>分數</th><th>結果</th><th>備註</th></tr>'
+        '%s</table></div></form>%s</div>'
+    ) % (lb.MAX_EVENTS, p, csrf_input(session), e(back),
+         rows or '<tr><td colspan="9" class="muted">沒有紀錄</td></tr>', more)
+    return layout('上傳紀錄', flash_html(query) + filters + table, session, 'events', game)
 
 
 def load_surveys(conn):
@@ -1244,7 +1276,9 @@ class Handler(BaseHTTPRequestHandler):
         if not 0 <= length <= MAX_FORM_BYTES:
             return None
         raw = self.rfile.read(length).decode('utf-8', errors='replace')
-        return {k: v[0] for k, v in parse_qs(raw, keep_blank_values=True).items()}
+        values = parse_qs(raw, keep_blank_values=True)
+        self.form_lists = values  # 同名欄位有多個值 (例如勾選的紀錄)
+        return {k: v[0] for k, v in values.items()}
 
     def do_GET(self):
         url = urlparse(self.path)
@@ -1411,6 +1445,30 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         parts = path.strip('/').split('/')
+        if parts[-2:] == ['events', 'delete'] and (len(parts) == 2 or (len(parts) == 3 and parts[0] in lb.GAMES)):
+            game = parts[0] if len(parts) == 3 else ''
+            p = game_prefix(game)
+            back = form.get('back', '')
+            back = '&' + urlencode(parse_qs(back), doseq=True) if back else ''
+            ids = [int(v) for v in self.form_lists.get('id', []) if v.isdigit()][:EVENTS_PAGE_SIZE * 5]
+            if not ids:
+                self.redirect('%s/events?msg=events-none%s' % (p, back))
+                return
+            actions = game_actions(game)
+            with lb.db_lock, db() as conn:
+                # 只刪這個遊戲的紀錄
+                count = conn.execute(
+                    'DELETE FROM events WHERE id IN (%s) AND action IN (%s)' % (
+                        ','.join('?' * len(ids)), ','.join('?' * len(actions))),
+                    ids + list(actions)).rowcount
+                note = '刪除 %d 筆上傳紀錄' % count
+                if game:
+                    lb.log_event(conn, ip, game + '-admin', '-', None, 200, note)
+                else:
+                    log_admin(conn, ip, '-', note)
+            self.redirect('%s/events?msg=events-deleted%s' % (p, back))
+            return
+
         if len(parts) == 2 and parts[0] in lb.GAMES and parts[1] == 'delete':
             game = parts[0]
             name = form.get('name', '')
