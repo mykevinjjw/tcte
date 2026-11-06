@@ -77,6 +77,7 @@ FLASH_MESSAGES = {
     'missing': '找不到這位玩家，可能已經被刪除',
     'survey-on': '已開啟問卷 (遊戲開放的日子不會顯示)',
     'survey-off': '已關閉問卷',
+    'game-deleted': '已刪除這筆遊戲分數',
 }
 STATUS_TEXT = {
     200: '登記成功',
@@ -86,6 +87,7 @@ STATUS_TEXT = {
 ACTION_TEXT = {
     'claim': '登記暱稱',
     'score': '上傳分數',
+    'snake': '貪吃蛇分數',
     'survey': '問卷',
     'admin': '後台操作',
 }
@@ -322,7 +324,7 @@ LIVE_JS = '''(function () {
 def layout(title, body, session=None, active=''):
     nav = ''
     if session:
-        links = [('/', '排行榜', 'players'), ('/timeline', '時間軸', 'timeline'), ('/survey', '問卷', 'survey'),
+        links = [('/', '排行榜', 'players'), ('/games', '其他遊戲', 'games'), ('/timeline', '時間軸', 'timeline'), ('/survey', '問卷', 'survey'),
                  ('/events', '上傳紀錄', 'events'), ('/backup', '備份下載', 'backup')]
         nav = '<nav>' + ''.join(
             '<a href="%s"%s>%s</a>' % (href, ' class="on"' if key == active else '', label)
@@ -515,6 +517,44 @@ def players_page(session, query):
     )
 
     return layout('排行榜', flash_html(query) + stats + dates_form + table, session, 'players')
+
+
+def games_page(session, query):
+    """其他遊戲 (貪吃蛇等) 的排行榜，可以刪除單筆分數"""
+    game = query.get('game', [''])[0]
+    if game not in lb.GAMES:
+        game = next(iter(lb.GAMES))
+    with db() as conn:
+        rows = conn.execute(
+            'SELECT name, score, created_at, updated_at FROM game_scores WHERE game = ?'
+            ' ORDER BY score DESC, updated_at', (game,)
+        ).fetchall()
+    chips = '<div class="chips">' + ''.join(
+        '<a class="chip%s" href="/games?game=%s">%s</a>' % (' on' if key == game else '', e(key), e(label))
+        for key, (label, _) in lb.GAMES.items()
+    ) + '</div>'
+    lines = []
+    rank = 0
+    for i, row in enumerate(rows):
+        if not i or rows[i - 1]['score'] != row['score']:
+            rank += 1
+        lines.append(
+            '<tr><td>%d</td><td>%s</td><td>%d</td><td>%s</td><td>%s</td><td class="actions">'
+            '<form method="post" action="/games/delete" onsubmit="return confirm(\'確定刪除這筆分數？\')">%s'
+            '<input type="hidden" name="game" value="%s"><input type="hidden" name="name" value="%s">'
+            '<button type="submit" class="danger">刪除分數</button></form></td></tr>' % (
+                rank, name_link(row['name']), row['score'], e(fmt_time(row['created_at'])),
+                e(fmt_time(row['updated_at'])), csrf_input(session), e(game), e(row['name']))
+        )
+    table = (
+        '<div class="card" data-live="games"><h2>%s排行榜 (共 %d 位，每 5 秒自動更新)</h2>%s'
+        '<div class="table-wrap"><table><tr><th>名次</th><th>暱稱</th><th>最高分</th><th>第一次上傳</th>'
+        '<th>最後刷新紀錄</th><th>操作</th></tr>%s</table></div>'
+        '<p class="muted">暱稱與裝置綁定和幼兒園照顧大作戰共用 (在「排行榜」頁解除綁定)。'
+        '這些遊戲不受開放日期限制，隨時都能玩。刪除分數後玩家可以重新上傳。</p></div>'
+    ) % (e(lb.GAMES[game][0]), len(rows), chips,
+         ''.join(lines) or '<tr><td colspan="6" class="muted">還沒有人上傳分數</td></tr>')
+    return layout('其他遊戲', flash_html(query) + table, session, 'games')
 
 
 # --- 圖表 (伺服器直接產生 SVG，滑鼠移到點或長條上會顯示詳細資料) ---
@@ -1149,6 +1189,8 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_body(200, page)
             else:
                 self.redirect('/?msg=missing')
+        elif url.path == '/games':
+            self.send_body(200, games_page(session, query))
         elif url.path == '/timeline':
             self.send_body(200, timeline_page(session, query))
         elif url.path == '/survey':
@@ -1260,6 +1302,19 @@ class Handler(BaseHTTPRequestHandler):
             self.redirect('/survey?msg=survey-%s' % ('on' if value == '1' else 'off'))
             return
 
+        if path == '/games/delete':
+            game = form.get('game', '')
+            name = form.get('name', '')
+            with lb.db_lock, db() as conn:
+                row = conn.execute('SELECT score FROM game_scores WHERE game = ? AND name = ?', (game, name)).fetchone()
+                if not row:
+                    self.redirect('/games?msg=missing')
+                    return
+                conn.execute('DELETE FROM game_scores WHERE game = ? AND name = ?', (game, name))
+                log_admin(conn, ip, name, '刪除%s分數 %d' % (lb.GAMES.get(game, (game,))[0], row[0]))
+            self.redirect('/games?' + urlencode({'game': game, 'msg': 'game-deleted'}))
+            return
+
         if path not in ('/players/score', '/players/unbind', '/players/delete'):
             self.send_body(404, layout('找不到頁面', '<div class="card">找不到這個頁面</div>', session))
             return
@@ -1293,6 +1348,7 @@ class Handler(BaseHTTPRequestHandler):
                 msg = 'unbind'
             else:
                 conn.execute('DELETE FROM players WHERE id = ?', (player_id,))
+                conn.execute('DELETE FROM game_scores WHERE name = ?', (player['name'],))
                 log_admin(conn, ip, player['name'], '刪除玩家 (分數 %s)' % score_text(player['score']))
                 msg = 'deleted'
         self.redirect('/?msg=' + msg)

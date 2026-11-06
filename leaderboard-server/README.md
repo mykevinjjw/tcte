@@ -71,6 +71,8 @@ GitHub Pages 是 HTTPS，瀏覽器不允許它呼叫 HTTP 的 API，所以需要
 
 遊戲有簡單／普通／困難三種難度（`games-site/birthday/game.js` 的 `LEVELS`），共用一個排行榜：網頁上傳 `{"score": 遊戲分數, "level"}`，伺服器存「遊戲分數 × 加權」（簡單 ×0.6、普通 ×1、困難 ×1.5，`server.py` 的 `LEVELS`）。兩個網站共用 `games-site/common.js`。兩邊的 localStorage 不互通，所以兩個網站之間的連結會在網址 `#player=暱稱,識別碼` 帶上這台裝置的身分，另一邊還沒有暱稱時才會採用。
 
+其他遊戲（目前有貪吃蛇 `games-site/snake/`）各有自己的排行榜：`GET /scores?game=snake`、`GET /best?game=snake&name=`，`POST /names`、`POST /scores` 的 JSON 加 `"game": "snake"`。分數存在 `game_scores` 表（每個遊戲、每個暱稱只留最高分），難度加權同上，遊戲分數上限在 `server.py` 的 `GAMES`。暱稱與裝置綁定和幼兒園照顧大作戰共用 `players` 表；這些遊戲不受開放日期限制，隨時都能玩。後台「其他遊戲」頁可以看排行榜、刪除單筆分數。新增遊戲時在 `GAMES` 加一筆，網頁帶對應的 `game` 即可。
+
 更新遊戲網站：
 
 ```bash

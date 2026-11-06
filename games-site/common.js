@@ -198,13 +198,13 @@
         container.empty().append(list);
     }
 
-    // 從伺服器讀排行榜
-    function renderLeaderboard(container, highlight, closed) {
+    // 從伺服器讀排行榜；game：其他遊戲 (例如 'snake')，沒帶是幼兒園照顧大作戰
+    function renderLeaderboard(container, highlight, closed, game) {
         // 定時刷新時保留舊的名單，避免閃爍
         if (container.is(':empty')) {
             container.html('<p class="bday-lb-status">讀取排行榜中…</p>');
         }
-        return request('/scores?limit=' + LEADERBOARD_SIZE).then(function (rows) {
+        return request('/scores?limit=' + LEADERBOARD_SIZE + (game ? '&game=' + encodeURIComponent(game) : '')).then(function (rows) {
             renderRows(container, rows, highlight, closed);
         }).catch(function () {
             if (container.find('.bday-lb-list').length) {

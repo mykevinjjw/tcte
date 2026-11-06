@@ -25,6 +25,10 @@ POST /survey/load {name, token}     -> {"answers": {...} 或 null}；只有上�
 POST /survey {name, token, answers} -> {"ok": true}；同一個暱稱重填會覆蓋
 GET  /health                        -> {"ok": true}
 
+其他遊戲 (例如貪吃蛇) 在 /scores、/best 帶 game=snake (POST 放在 JSON 的 game 欄位)，
+分數存在 game_scores 表、各自一個排行榜，暱稱與裝置綁定和生日遊戲共用 players 表；
+這些遊戲不受開放日期限制，隨時都能玩。
+
 token 是每台裝置隨機產生的識別碼，暱稱屬於第一個登記它的裝置。
 開放日期存在 settings 表 (管理後台 admin.py 可以修改)，登記暱稱與上傳分數會記在 events 表。
 """
@@ -59,6 +63,11 @@ LEVELS = {
     'hard': ('困難', 1.5),
 }
 MAX_SCORE = round(MAX_RAW_SCORE * max(w for _, w in LEVELS.values()))  # 排行榜上可能的最高分
+# 其他遊戲：名稱、遊戲分數上限 (加權前)；難度加權同 LEVELS
+GAMES = {
+    'snake': ('貪吃蛇', 4000),
+}
+MAX_GAME_SCORE = max(round(raw * max(w for _, w in LEVELS.values())) for _, raw in GAMES.values())
 MAX_LIMIT = 100
 MAX_BODY_BYTES = 1024
 RATE_LIMIT_COUNT = 10  # 每個 IP 每分鐘最多登記暱稱 + 上傳分數的次數
@@ -141,6 +150,17 @@ def init_db():
             ' updated_at TEXT NOT NULL)'
         )
         conn.execute('CREATE INDEX IF NOT EXISTS idx_players_rank ON players (score DESC, updated_at, id)')
+        # 其他遊戲的分數：每個遊戲、每個暱稱一列，只保留最高分
+        conn.execute(
+            'CREATE TABLE IF NOT EXISTS game_scores ('
+            ' game TEXT NOT NULL,'
+            ' name TEXT NOT NULL COLLATE NOCASE,'
+            ' score INTEGER NOT NULL,'
+            ' created_at TEXT NOT NULL,'
+            ' updated_at TEXT NOT NULL,'
+            ' PRIMARY KEY (game, name))'
+        )
+        conn.execute('CREATE INDEX IF NOT EXISTS idx_game_scores_rank ON game_scores (game, score DESC, updated_at)')
         # 問卷：一個暱稱一份，answers 是 JSON
         conn.execute(
             'CREATE TABLE IF NOT EXISTS surveys ('
@@ -272,6 +292,18 @@ def clean_token(value):
     return None
 
 
+def clean_game(value):
+    """沒帶或 birthday：生日遊戲 (回傳 '')；其他遊戲回傳 key；不認得回傳 None"""
+    if value in (None, '', 'birthday'):
+        return ''
+    return value if value in GAMES else None
+
+
+def game_rank(conn, game, best):
+    return conn.execute('SELECT COUNT(DISTINCT score) FROM game_scores WHERE game = ? AND score > ?',
+                        (game, best)).fetchone()[0] + 1
+
+
 def allow_post(ip):
     now = time.time()
     with rate_lock:
@@ -340,8 +372,17 @@ class Handler(BaseHTTPRequestHandler):
         if url.path == '/best':
             # 某個暱稱目前在伺服器上的最高分 (管理後台可能改過)，沒有分數時 best 為 null
             name = clean_name(parse_qs(url.query).get('name', [''])[0])
-            if not name:
+            game = clean_game(parse_qs(url.query).get('game', [''])[0])
+            if not name or game is None:
                 self.send_json(400, {'error': '暱稱不正確'})
+                return
+            if game:
+                with sqlite3.connect(DB_PATH) as conn:
+                    row = conn.execute('SELECT score FROM game_scores WHERE game = ? AND name = ?',
+                                       (game, name)).fetchone()
+                    best = row[0] if row else None
+                    rank = game_rank(conn, game, best) if best is not None else None
+                self.send_json(200, {'best': best, 'rank': rank})
                 return
             with sqlite3.connect(DB_PATH) as conn:
                 row = conn.execute('SELECT score FROM players WHERE name = ?', (name,)).fetchone()
@@ -360,12 +401,22 @@ class Handler(BaseHTTPRequestHandler):
         except ValueError:
             limit = 10
         limit = max(1, min(limit, MAX_LIMIT))
+        game = clean_game(parse_qs(url.query).get('game', [''])[0])
+        if game is None:
+            self.send_json(400, {'error': '找不到這個遊戲'})
+            return
 
         with sqlite3.connect(DB_PATH) as conn:
-            rows = conn.execute(
-                'SELECT name, score FROM players WHERE score IS NOT NULL'
-                ' ORDER BY score DESC, updated_at ASC, id ASC LIMIT ?', (limit,)
-            ).fetchall()
+            if game:
+                rows = conn.execute(
+                    'SELECT name, score FROM game_scores WHERE game = ?'
+                    ' ORDER BY score DESC, updated_at ASC LIMIT ?', (game, limit)
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    'SELECT name, score FROM players WHERE score IS NOT NULL'
+                    ' ORDER BY score DESC, updated_at ASC, id ASC LIMIT ?', (limit,)
+                ).fetchall()
         self.send_json(200, [{'name': name, 'score': score} for name, score in rows])
 
     def read_json(self, max_bytes=MAX_BODY_BYTES):
@@ -437,16 +488,21 @@ class Handler(BaseHTTPRequestHandler):
         if path not in ('/names', '/scores'):
             self.send_json(404, {'error': '找不到這個網址'})
             return
-        with sqlite3.connect(DB_PATH) as conn:
-            is_open = is_open_date(conn)
-        if not is_open:
-            self.send_json(403, {'error': '現在不是開放上傳的時間喔'})
-            return
-
         data = self.read_json()
         if data is None:
             self.send_json(400, {'error': '資料格式不正確'})
             return
+        game = clean_game(data.get('game'))
+        if game is None:
+            self.send_json(400, {'error': '找不到這個遊戲'})
+            return
+        if not game:
+            # 開放日期只管生日遊戲
+            with sqlite3.connect(DB_PATH) as conn:
+                is_open = is_open_date(conn)
+            if not is_open:
+                self.send_json(403, {'error': '現在不是開放上傳的時間喔'})
+                return
         name = clean_name(data.get('name'))
         token = clean_token(data.get('token'))
         if name is None:
@@ -464,26 +520,29 @@ class Handler(BaseHTTPRequestHandler):
             if level not in LEVELS:
                 self.send_json(400, {'error': '難度不正確'})
                 return
-            if isinstance(raw, bool) or not isinstance(raw, int) or not 0 <= raw <= MAX_RAW_SCORE:
+            max_raw = GAMES[game][1] if game else MAX_RAW_SCORE
+            if isinstance(raw, bool) or not isinstance(raw, int) or not 0 <= raw <= max_raw:
                 self.send_json(400, {'error': '分數不正確'})
                 return
             label, weight = LEVELS[level]
             score = int(raw * weight + 0.5)
-            level_note = '%s %d 分 ×%g，' % (label, raw, weight)
+            level_note = '%s%s %d 分 ×%g，' % (GAMES[game][0] + ' ' if game else '', label, raw, weight)
         ip = self.client_ip()
-        action = 'claim' if path == '/names' else 'score'
+        action = 'claim' if path == '/names' else (game or 'score')
         if not allow_post(ip):
             self.send_json(429, {'error': '太頻繁了，休息一下再試'})
             return
 
         with db_lock, sqlite3.connect(DB_PATH) as conn:
             row = conn.execute('SELECT id, token, score FROM players WHERE name = ?', (name,)).fetchone()
+            # 其他遊戲的分數不放在 players.score (那是生日遊戲的)
+            player_score = None if game else score
             if row is None:
                 conn.execute(
                     'INSERT INTO players (name, token, score, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
-                    (name, token, score, now_text(), now_text())
+                    (name, token, player_score, now_text(), now_text())
                 )
-                best = score
+                best = player_score
             else:
                 player_id, owner, best = row
                 if owner is not None and owner != token:
@@ -493,7 +552,7 @@ class Handler(BaseHTTPRequestHandler):
                 if owner is None:
                     # 舊資料還沒有裝置識別碼，由第一個使用的裝置認領
                     conn.execute('UPDATE players SET token = ? WHERE id = ?', (token, player_id))
-                if score is not None and (best is None or score > best):
+                if player_score is not None and (best is None or player_score > best):
                     # 同一個暱稱只更新成更高的分數
                     conn.execute('UPDATE players SET score = ?, updated_at = ? WHERE id = ?',
                                  (score, now_text(), player_id))
@@ -502,6 +561,26 @@ class Handler(BaseHTTPRequestHandler):
             if path == '/names':
                 log_event(conn, ip, action, name, None, 200, token=token)
                 self.send_json(200, {'ok': True})
+                return
+            if game:
+                name = conn.execute('SELECT name FROM players WHERE name = ?', (name,)).fetchone()[0]
+                existing = conn.execute('SELECT score FROM game_scores WHERE game = ? AND name = ?',
+                                        (game, name)).fetchone()
+                if existing is None:
+                    conn.execute(
+                        'INSERT INTO game_scores (game, name, score, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
+                        (game, name, score, now_text(), now_text())
+                    )
+                    best = score
+                elif score > existing[0]:
+                    conn.execute('UPDATE game_scores SET score = ?, updated_at = ? WHERE game = ? AND name = ?',
+                                 (score, now_text(), game, name))
+                    best = score
+                else:
+                    best = existing[0]
+                rank = game_rank(conn, game, best)
+                log_event(conn, ip, action, name, score, 201, '%s最高分 %d，第 %d 名' % (level_note, best, rank), token)
+                self.send_json(201, {'rank': rank, 'best': best, 'score': score})
                 return
             higher = conn.execute('SELECT COUNT(DISTINCT score) FROM players WHERE score > ?', (best,)).fetchone()[0]
             log_event(conn, ip, action, name, score, 201, '%s最高分 %d，第 %d 名' % (level_note, best, higher + 1), token)
