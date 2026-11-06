@@ -401,6 +401,7 @@
         });
         clearInterval(tickTimer);
         tickTimer = setInterval(tick, 100);
+        $('body').addClass('bday-playing'); // 遊戲進行中先收起旁邊的排行榜
     }
 
     function tick() {
@@ -541,6 +542,8 @@
     function endGame() {
         state.running = false;
         clearInterval(tickTimer);
+        $('body').removeClass('bday-playing');
+        refreshSideBoard();
 
         // 排行榜分數 = 遊戲分數 × 難度加權 (伺服器也用同樣的方式計算)
         state.boardScore = Math.round(state.score * state.info.weight);

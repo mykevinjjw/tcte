@@ -220,6 +220,11 @@ a.game-card:hover {
     }
 }
 
+/* 遊戲進行中不顯示旁邊的排行榜 (開場與結束畫面才顯示) */
+.bday-playing .bday-side-lb {
+    display: none;
+}
+
 /* 難度選擇 */
 .bday-level-row {
     display: flex;
