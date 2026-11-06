@@ -682,53 +682,9 @@ a.game-card:hover {
     padding: 0;
 }
 
-.snake-pad {
-    display: grid;
-    grid-template-columns: repeat(3, 56px);
-    grid-template-rows: repeat(2, 48px);
-    gap: 6px;
-    justify-content: center;
-    margin-top: 12px;
+/* 遊戲中在面板任何地方滑動都是轉向，不讓頁面捲動或縮放 */
+.snake-page.bday-playing .bday-game-panel {
+    touch-action: none;
     user-select: none;
     -webkit-user-select: none;
-}
-
-.snake-pad button {
-    border: 2px solid #81c784;
-    border-radius: 14px;
-    background: #ffffff;
-    color: #2e7d32;
-    font-size: 1.2rem;
-    cursor: pointer;
-    touch-action: manipulation;
-}
-
-.snake-pad button:active {
-    background: #c8e6c9;
-}
-
-.snake-pad [data-dir="up"] {
-    grid-column: 2;
-}
-
-.snake-pad [data-dir="left"] {
-    grid-column: 1;
-    grid-row: 2;
-}
-
-.snake-pad [data-dir="down"] {
-    grid-column: 2;
-    grid-row: 2;
-}
-
-.snake-pad [data-dir="right"] {
-    grid-column: 3;
-    grid-row: 2;
-}
-
-/* 有實體鍵盤、滑鼠的裝置不用顯示方向按鈕 */
-@media (hover: hover) and (pointer: fine) {
-    .snake-pad {
-        display: none;
-    }
 }

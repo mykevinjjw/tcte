@@ -145,7 +145,7 @@
             '<div class="bday-overlay-box">' +
             '<p class="bday-overlay-big">🐍 貪吃蛇</p>' +
             '<p>吃掉 📚 ✏️ 📝 讓蛇變長，每個 +' + FOOD_POINTS + ' 分；<br>偶爾出現的 ⭐ 要快點吃，+' + BONUS_POINTS + ' 分！</p>' +
-            '<p>撞到自己就結束。電腦用方向鍵或 WASD，手機在格子上滑動或按下面的按鈕。</p>' +
+            '<p>撞到自己就結束。手機在畫面上往上下左右滑動，電腦用方向鍵或 WASD。</p>' +
             '<div class="bday-level-row"></div>' +
             '<p class="bday-level-info"></p>' +
             '<p class="bday-best intro"' + (best > 0 ? '>🏆 最高分：' + best : ' style="display:none">') + '</p>' +
@@ -538,13 +538,7 @@
             '<button type="button" class="snake-pause" aria-label="暫停">⏸️</button>' +
             '</div>' +
             '<div class="bday-game-stage snake-stage"><canvas class="snake-canvas"></canvas></div>' +
-            '<div class="snake-pad">' +
-            '<button type="button" data-dir="up" aria-label="上">▲</button>' +
-            '<button type="button" data-dir="left" aria-label="左">◀</button>' +
-            '<button type="button" data-dir="down" aria-label="下">▼</button>' +
-            '<button type="button" data-dir="right" aria-label="右">▶</button>' +
-            '</div>' +
-            '<p class="bday-hint">方向鍵 / WASD 移動，空白鍵暫停；手機可以在格子上滑動</p>' +
+            '<p class="bday-hint">手機：在畫面上往上下左右滑動；電腦：方向鍵 / WASD，空白鍵暫停</p>' +
             '<div id="bday-overlay" class="bday-overlay"><div class="bday-overlay-box"><p>讀取中…</p></div></div>' +
             '</div>'
         );
@@ -571,11 +565,6 @@
             }
         });
         game.on('click', '.snake-pause', pause);
-        // 按鈕用 pointerdown，手機上反應比 click 快
-        game.on('pointerdown', '.snake-pad button', function (e) {
-            e.preventDefault();
-            turn($(this).data('dir'));
-        });
 
         $(document).on('keydown', function (e) {
             if ($(e.target).is('input')) {
@@ -600,14 +589,19 @@
             }
         });
 
-        // 手機：在格子上滑動轉向 (遊戲中不讓頁面跟著捲動)
+        // 手機：在遊戲面板任何地方滑動轉向 (不用按鈕；遊戲中不讓頁面跟著捲動)
+        const panel = $('#bday-game .bday-game-panel')[0];
         let touchStart = null;
-        canvas.addEventListener('touchstart', function (e) {
+        panel.addEventListener('touchstart', function (e) {
+            if (!state || !state.running || state.paused) {
+                touchStart = null; // 開場、暫停、結束畫面照常點按鈕
+                return;
+            }
             const t = e.changedTouches[0];
             touchStart = { x: t.clientX, y: t.clientY };
         }, { passive: true });
-        canvas.addEventListener('touchmove', function (e) {
-            if (state && state.running) {
+        panel.addEventListener('touchmove', function (e) {
+            if (state && state.running && !state.paused) {
                 e.preventDefault();
             }
             if (!touchStart) {
@@ -621,7 +615,7 @@
                 touchStart = { x: t.clientX, y: t.clientY }; // 不放開也能連續轉彎
             }
         }, { passive: false });
-        canvas.addEventListener('touchend', function () {
+        panel.addEventListener('touchend', function () {
             touchStart = null;
         });
 
