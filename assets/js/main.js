@@ -55,94 +55,6 @@ $(document).ready(function () {
     // --- 新增日期狀態提示訊息的 HTML 元素 ---
     $('#exam-date').after('<div id="date-status-message" style="font-size: 0.8rem; color: #ffc107; text-align: center; margin-top: 10px; font-weight: bold;"></div>');
 
-    // --- 彩蛋：管理者生日 (11/4) ---
-    const adminBirthday = { month: 11, day: 4 };
-    const birthdayOpenFrom = { month: 11, day: 3 }; // 連不上排行榜伺服器時，預設提前開放的日期 (同月)
-    let birthdayMode = null;
-    function updateBirthdayEgg(now) {
-        const month = now.getMonth() + 1;
-        const day = now.getDate();
-        const isBirthday = month === adminBirthday.month && day === adminBirthday.day;
-        // 小遊戲開放日期以管理後台的設定為準 (birthday-board.js 向伺服器查詢)，還沒查到時用預設日期
-        let gameOpen = typeof window.isBirthdayGameOpen === 'function' ? window.isBirthdayGameOpen() : null;
-        if (gameOpen === undefined) {
-            return; // 還在向伺服器查詢開放狀態，查到再顯示 (避免按鈕閃一下又消失)
-        }
-        if (gameOpen === null) {
-            gameOpen = isBirthday ||
-                (month === birthdayOpenFrom.month && day >= birthdayOpenFrom.day && day < adminBirthday.day);
-        }
-
-        let mode = '';
-        if (isBirthday) {
-            mode = gameOpen ? 'birthday' : 'birthday-closed';
-        } else if (gameOpen) {
-            mode = 'open';
-        }
-        if (mode === birthdayMode) {
-            return;
-        }
-        birthdayMode = mode;
-
-        $('#birthday-egg, #birthday-confetti').remove();
-        // 頁面旁固定的排行榜 (birthday-board.js)：遊戲關閉後也保留，只拿掉遊戲入口與祝福
-        if (typeof window.showBirthdayLeaderboard === 'function') {
-            window.showBirthdayLeaderboard(gameOpen);
-        }
-        if (!mode) {
-            return;
-        }
-
-        const beforeBirthday = month < adminBirthday.month || (month === adminBirthday.month && day < adminBirthday.day);
-        let message = '🎂 避雷針的生日小遊戲開放中！ 🎉';
-        if (isBirthday) {
-            message = '🎂 今天是避雷針的生日，祝生日快樂！ 🎉';
-        } else if (beforeBirthday) {
-            message = '🎂 11/4 是避雷針的生日，小遊戲搶先開放！ 🎉';
-        }
-        $('#date-status-message').after(
-            '<div id="birthday-egg" class="birthday-egg" title="點我放彩帶！">' + message +
-            (gameOpen ? '<a class="birthday-game-btn" href="https://games.mykevin.dpdns.org/birthday/">🎮 生日限定小遊戲</a>' : '') +
-            '</div>'
-        );
-
-        // 生日限定小遊戲在遊戲網站 (games.mykevin.dpdns.org)，連結帶上暱稱 (birthday-board.js)
-        $('#birthday-egg .birthday-game-btn').on('click', function (e) {
-            e.stopPropagation();
-            if (typeof window.birthdayGameUrl === 'function') {
-                this.href = window.birthdayGameUrl();
-            }
-        });
-
-        const confetti = $('<div id="birthday-confetti" class="birthday-confetti"></div>');
-        const pieces = ['🎉', '🎊', '🎈', '🎂', '✨', '🎁'];
-        for (let i = 0; i < 24; i++) {
-            $('<span></span>')
-                .text(pieces[i % pieces.length])
-                .css({
-                    'left': Math.random() * 100 + '%',
-                    'animation-delay': (Math.random() * 8) + 's',
-                    'animation-duration': (6 + Math.random() * 6) + 's',
-                    'font-size': (1 + Math.random() * 1.2) + 'rem'
-                })
-                .appendTo(confetti);
-        }
-        $('body').append(confetti);
-
-        // 點擊祝福文字再噴一次彩帶
-        $('#birthday-egg').on('click', function () {
-            confetti.find('span').each(function () {
-                const piece = $(this);
-                piece.css('animation', 'none');
-                piece[0].offsetHeight; // 強制重繪以重新啟動動畫
-                piece.css({
-                    'animation': '',
-                    'animation-delay': (Math.random() * 1.5) + 's'
-                });
-            });
-        });
-    }
-
     // --- 倒數計時器邏輯 ---
     let countdownInterval;
     function updateCountdown() {
@@ -150,8 +62,6 @@ $(document).ready(function () {
         if (timeOffset !== 0) {
             now = new Date(now.getTime() + timeOffset);
         }
-
-        updateBirthdayEgg(now);
 
         const currentCalendarYear = now.getFullYear();
 
@@ -245,9 +155,4 @@ $(document).ready(function () {
     updateCountdown();
     // 設定每秒更新
     countdownInterval = setInterval(updateCountdown, 1000);
-    // --- 公告欄邏輯 ---
-    const announcementBoard = $('#announcement-board');
-    setTimeout(function () {
-        announcementBoard.addClass('hidden');
-    }, 30000);
 });
