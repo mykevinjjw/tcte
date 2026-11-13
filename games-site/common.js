@@ -129,23 +129,9 @@
     }
     importIdentity();
 
-    // 遊戲搬到新網址後，原本的暱稱與裝置綁定還存在倒數網頁的網址 (localStorage 不互通)。
-    // 每台裝置第一次進遊戲網站時跳到倒數網頁的 bridge.html 讀出原本的身分再帶回來 (只跳一次)；
-    // 已經在新網址另外登記暱稱的人也會換回原本的暱稱
+    // 原本會跳到倒數網頁的 bridge.html 拿回搬家前的身分；倒數網站已經拿掉轉發，不再跳轉
     const COUNTDOWN_URL = 'https://mykevinjjw.github.io/tcte/';
-    const BRIDGE_KEY = 'tcte-identity-bridged-2';
-    function bridgeIdentity() {
-        if (location.origin === new URL(COUNTDOWN_URL).origin || storageGet(BRIDGE_KEY)) {
-            return false;
-        }
-        storageSet(BRIDGE_KEY, '1');
-        if (storageGet(BRIDGE_KEY) !== '1') {
-            return false; // 無法儲存 (例如無痕模式擋掉)，不跳轉以免一直來回
-        }
-        location.replace(COUNTDOWN_URL + 'bridge.html#return=' + encodeURIComponent(location.href));
-        return true;
-    }
-    const bridging = bridgeIdentity();
+    const bridging = false;
 
     function request(path, options) {
         return fetch(API_URL + path, options).then(function (res) {
