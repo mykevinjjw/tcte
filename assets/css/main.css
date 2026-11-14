@@ -202,6 +202,28 @@ body {
     animation-delay: 3s;
 }
 
+/* 遊戲搬到新網址的提示 */
+.games-moved {
+    display: inline-block;
+    margin-top: 18px;
+    padding: 6px 14px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.15);
+    color: #ffffff;
+    font-size: 0.9rem;
+    text-decoration: none;
+    line-height: 1.6;
+    transition: background 0.2s;
+}
+
+.games-moved span {
+    white-space: nowrap;
+}
+
+.games-moved:hover {
+    background: rgba(255, 255, 255, 0.28);
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
     .content {
