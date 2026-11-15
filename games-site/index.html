@@ -22,7 +22,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>小遊戲</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎮</text></svg>">
-    <link rel="stylesheet" href="site.css?v=11">
+    <link rel="stylesheet" href="site.css?v=12">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700&display=swap" rel="stylesheet">
@@ -69,6 +69,7 @@
                 </div>
                 <span class="game-card-status" id="loc-status">查詢中…</span>
             </div>
+            <p class="loc-note" id="loc-note" hidden></p>
             <iframe class="loc-map" title="站長位置地圖" loading="lazy" referrerpolicy="strict-origin"></iframe>
             <a class="loc-full" href="/loc/public.html" target="_blank" rel="noopener">全螢幕看 ↗</a>
         </section>
@@ -95,6 +96,9 @@
                     if (!latest) return;
                     var $map = $('#loc-card .loc-map');
                     if (!$map.attr('src')) $map.attr('src', '/loc/public.html?embed=1');
+                    var note = d.note;
+                    $('#loc-note').prop('hidden', !note)
+                        .text(note ? '💬 ' + note.text + '　· ' + locAgo(note.t) : '');
                     $('#loc-status').text('📍 ' + locAgo(latest.t))
                         .toggleClass('open', Date.now() - latest.t < 15 * 60000);
                 }, function () { $('#loc-card').prop('hidden', true); });

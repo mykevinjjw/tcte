@@ -871,6 +871,20 @@ a.game-card:hover {
     white-space: nowrap;
 }
 
+.loc-note {
+    margin: 12px 0 0;
+    padding: 10px 14px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.12);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    line-height: 1.5;
+}
+
+.loc-note[hidden] {
+    display: none;
+}
+
 .loc-map {
     width: 100%;
     height: min(420px, 60vh);
