@@ -844,3 +844,44 @@ a.game-card:hover {
     opacity: 0.5;
     cursor: not-allowed;
 }
+
+/* --- 站長在哪 (tcte-locator，/loc/) --- */
+.loc-card {
+    margin-top: 16px;
+    text-align: left;
+}
+
+.loc-card[hidden] {
+    display: none;
+}
+
+.loc-card-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.loc-card-title {
+    flex: 1;
+}
+
+.loc-card .game-card-status {
+    margin-top: 0;
+    align-self: center;
+    white-space: nowrap;
+}
+
+.loc-map {
+    width: 100%;
+    height: min(420px, 60vh);
+    margin-top: 12px;
+    border: 0;
+    border-radius: 14px;
+    background: rgba(0, 0, 0, 0.2);
+}
+
+.loc-full {
+    align-self: flex-end;
+    font-size: 0.85rem;
+    opacity: 0.85;
+}

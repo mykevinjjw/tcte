@@ -22,7 +22,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>小遊戲</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎮</text></svg>">
-    <link rel="stylesheet" href="site.css?v=8">
+    <link rel="stylesheet" href="site.css?v=11">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700&display=swap" rel="stylesheet">
@@ -59,6 +59,19 @@
             <p class="survey-entry-note"></p>
             <button type="button" class="bday-survey-btn">填小問卷</button>
         </section>
+        <!-- 站長在哪：tcte-locator（/loc/）公開的最新位置；完整軌跡仍是端對端加密，只有站長看得到 -->
+        <section id="loc-card" class="game-card loc-card" hidden>
+            <div class="loc-card-head">
+                <span class="game-card-icon">📍</span>
+                <div class="loc-card-title">
+                    <h2>站長在哪</h2>
+                    <p>站長的最新位置，每 5 分鐘更新一次</p>
+                </div>
+                <span class="game-card-status" id="loc-status">查詢中…</span>
+            </div>
+            <iframe class="loc-map" title="站長位置地圖" loading="lazy" referrerpolicy="strict-origin"></iframe>
+            <a class="loc-full" href="/loc/public.html" target="_blank" rel="noopener">全螢幕看 ↗</a>
+        </section>
     </main>
     <footer class="games-footer">&copy; 2025 TCTE Countdown. Designed by 黃逸凱 (mykevinjjw).</footer>
     <script src="https://code.jquery.com/jquery-3.6.2.min.js"></script>
@@ -67,6 +80,27 @@
     <script>
         (function ($) {
             var G = window.TcteGames;
+            // 站長在哪：站長有公開位置才顯示卡片，狀態標籤跟遊戲卡片同一個樣式
+            function locAgo(t) {
+                var m = Math.round((Date.now() - t) / 60000);
+                if (m < 1) return '剛剛更新';
+                if (m < 60) return m + ' 分鐘前';
+                var h = Math.round(m / 60);
+                return h < 48 ? h + ' 小時前' : Math.round(h / 24) + ' 天前';
+            }
+            function locRefresh() {
+                $.getJSON('/loc/api/v1/public').then(function (d) {
+                    var latest = d && d.latest;
+                    $('#loc-card').prop('hidden', !latest);
+                    if (!latest) return;
+                    var $map = $('#loc-card .loc-map');
+                    if (!$map.attr('src')) $map.attr('src', '/loc/public.html?embed=1');
+                    $('#loc-status').text('📍 ' + locAgo(latest.t))
+                        .toggleClass('open', Date.now() - latest.t < 15 * 60000);
+                }, function () { $('#loc-card').prop('hidden', true); });
+            }
+            locRefresh();
+            setInterval(locRefresh, 60000);
             $('.games-countdown-link').on('click', function () {
                 this.href = G.linkWithIdentity(G.COUNTDOWN_URL);
             });
