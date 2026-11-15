@@ -500,7 +500,11 @@ def players_page(session, query):
         # 只在其他遊戲登記過暱稱、沒玩過幼兒園照顧大作戰的人不列在這裡 (到那個遊戲的排行榜管理)
         players = conn.execute(
             'SELECT id, name, token, score, created_at, updated_at FROM players p'
-            ' WHERE score IS NOT NULL OR NOT EXISTS (SELECT 1 FROM game_scores g WHERE g.name = p.name)'
+            ' WHERE score IS NOT NULL'
+            # 在幼兒園照顧大作戰登記過暱稱 (之後才去玩其他遊戲) 的人還是要列出來；只看這個暱稱登記之後的紀錄 (同名的舊玩家可能被刪過)
+            '  OR EXISTS (SELECT 1 FROM events ev WHERE ev.name = p.name COLLATE NOCASE AND ev.action = \'claim\''
+            '   AND ev.at >= p.created_at)'
+            '  OR NOT EXISTS (SELECT 1 FROM game_scores g WHERE g.name = p.name)'
             '  AND NOT EXISTS (SELECT 1 FROM events ev WHERE ev.name = p.name COLLATE NOCASE AND ev.action LIKE \'%-claim\')'
             ' ORDER BY score IS NULL, score DESC, updated_at, id'
         ).fetchall()
