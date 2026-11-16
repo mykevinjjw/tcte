@@ -695,6 +695,28 @@ a.game-card:hover {
     -webkit-user-select: none;
 }
 
+/* 讀書彈珠台 */
+.pinball-stage {
+    max-width: min(400px, calc((100vh - 170px) * 400 / 720));
+    margin: 0 auto;
+}
+
+.pinball-canvas {
+    display: block;
+    width: 100%;
+    aspect-ratio: 400 / 720;
+    border-radius: 14px;
+    box-shadow: inset 0 0 0 3px #3a7bd5;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.pinball-page.bday-playing .bday-game-panel {
+    user-select: none;
+    -webkit-user-select: none;
+}
+
 /* 生日小遊戲問卷 (遊戲主頁) */
 .bday-survey-btn {
     display: block;

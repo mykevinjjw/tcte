@@ -378,7 +378,8 @@ LIVE_JS = '''(function () {
 '''
 
 
-SECTIONS = [('', '🧸 幼兒園照顧大作戰')] + [(key, '🐍 ' + label) for key, (label, _) in lb.GAMES.items()]
+GAME_ICONS = {'snake': '🐍', 'pinball': '🎯'}
+SECTIONS = [('', '🧸 幼兒園照顧大作戰')] + [(key, GAME_ICONS.get(key, '🎮') + ' ' + label) for key, (label, _) in lb.GAMES.items()]
 
 
 def layout(title, body, session=None, active='', game=None):
