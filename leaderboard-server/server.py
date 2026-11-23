@@ -66,6 +66,7 @@ MAX_SCORE = round(MAX_RAW_SCORE * max(w for _, w in LEVELS.values()))  # 排行�
 # 其他遊戲：名稱、遊戲分數上限 (加權前)；難度加權同 LEVELS
 GAMES = {
     'snake': ('貪吃蛇', 4000),
+    'pinball': ('讀書彈珠台', 500000),
 }
 MAX_GAME_SCORE = max(round(raw * max(w for _, w in LEVELS.values())) for _, raw in GAMES.values())
 MAX_LIMIT = 100
