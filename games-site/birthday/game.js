@@ -375,6 +375,7 @@
     }
 
     function startGame() {
+        if (window.tcteTrack) window.tcteTrack('start', (LEVELS[level] && LEVELS[level].label) || '');   // 匿名瀏覽紀錄
         const now = performance.now();
         const info = LEVELS[level];
         renderKids();
@@ -547,6 +548,7 @@
 
         // 排行榜分數 = 遊戲分數 × 難度加權 (伺服器也用同樣的方式計算)
         state.boardScore = Math.round(state.score * state.info.weight);
+        if (window.tcteTrack) window.tcteTrack('end', state.boardScore + ' 分');   // 匿名瀏覽紀錄
         const best = G.readBest();
         const isNewBest = state.boardScore > best;
         state.previousBest = best;

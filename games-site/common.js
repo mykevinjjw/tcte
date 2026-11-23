@@ -231,3 +231,35 @@
     };
 
 })(jQuery);
+
+// --- 遊戲網站的匿名瀏覽紀錄（跟「站長在哪」同一份，站長在站長地圖看得到）---
+// 只送「哪一頁、從哪個網站點進來」，不送暱稱或裝置識別碼；伺服器不存 IP、不用 cookie，30 天後刪除。
+// 只在遊戲網站送（統測倒數網頁也用這支檔案，那邊不送）；站長自己的瀏覽器（存過站長金鑰）不送。
+(function () {
+    if (location.hostname !== 'games.mykevin.dpdns.org') return;
+    var footer = document.querySelector('.games-footer');
+    if (footer) {
+        var p = document.createElement('p');
+        p.className = 'games-privacy';
+        p.textContent = '本站有匿名瀏覽統計：只記時間、裝置類型、從哪個網站點進來，不記 IP、不用 cookie，30 天後自動刪除。';
+        footer.appendChild(p);
+    }
+    try { if (localStorage.getItem('tcte-locator-key-v1')) return; } catch (e) { /* 無痕模式 */ }
+    // 遊戲裡用了哪些功能（開始玩、玩完的分數）：同一個動作 3 秒內只算一次
+    var lastEv = {};
+    window.tcteTrack = function (event, detail) {
+        var now = Date.now();
+        if (now - (lastEv[event] || 0) < 3000) return;
+        lastEv[event] = now;
+        try {
+            fetch('/loc/api/v1/hit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, keepalive: true,
+                body: JSON.stringify({ page: location.pathname, event: event, detail: String(detail || '') }) }).catch(function () {});
+        } catch (e) { /* 很舊的瀏覽器：不記 */ }
+    };
+    var ref = '';
+    try { ref = document.referrer; } catch (e) { /* ignore */ }
+    try {
+        fetch('/loc/api/v1/hit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, keepalive: true,
+            body: JSON.stringify({ page: location.pathname, ref: ref }) }).catch(function () {});
+    } catch (e) { /* 很舊的瀏覽器：不記 */ }
+})();

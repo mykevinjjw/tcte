@@ -370,6 +370,7 @@
     }
 
     function startGame() {
+        if (window.tcteTrack) window.tcteTrack('start', (LEVELS[level] && LEVELS[level].label) || '');   // 匿名瀏覽紀錄
         const info = LEVELS[level];
         state = {
             running: true,
@@ -951,6 +952,7 @@
         refreshSideBoard();
 
         state.boardScore = Math.round(state.score * state.info.weight);
+        if (window.tcteTrack) window.tcteTrack('end', state.boardScore + ' 分');   // 匿名瀏覽紀錄
         const best = readBest();
         const isNewBest = state.boardScore > best;
         state.previousBest = best;
