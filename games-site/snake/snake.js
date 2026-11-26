@@ -31,7 +31,7 @@
     // 難度 (key 與 weight 要和 server.py 的 LEVELS 一致)：排行榜分數 = 遊戲分數 × weight
     // speed：每走一格的毫秒數 (開局 → 吃了 40 個以後)；wrap：撞牆會從另一邊出來
     const LEVELS = {
-        easy: { label: '簡單', speed: [170, 120], wrap: true, weight: 0.6, info: '比較慢，撞牆會從另一邊出來' },
+        easy: { label: '簡單', speed: [170, 120], wrap: false, weight: 0.6, info: '比較慢，撞牆就結束' },
         normal: { label: '普通', speed: [140, 85], wrap: false, weight: 1, info: '撞牆就結束' },
         hard: { label: '困難', speed: [105, 55], wrap: false, weight: 1.5, info: '超快，撞牆就結束' }
     };
@@ -145,7 +145,7 @@
             '<div class="bday-overlay-box">' +
             '<p class="bday-overlay-big">🐍 貪吃蛇</p>' +
             '<p>吃掉 📚 ✏️ 📝 讓蛇變長，每個 +' + FOOD_POINTS + ' 分；<br>偶爾出現的 ⭐ 要快點吃，+' + BONUS_POINTS + ' 分！</p>' +
-            '<p>撞到自己就結束。手機在畫面上往上下左右滑動，電腦用方向鍵或 WASD。</p>' +
+            '<p>撞到牆或自己就結束。手機在畫面上往上下左右滑動，電腦用方向鍵或 WASD。</p>' +
             '<div class="bday-level-row"></div>' +
             '<p class="bday-level-info"></p>' +
             '<p class="bday-best intro"' + (best > 0 ? '>🏆 最高分：' + best : ' style="display:none">') + '</p>' +
@@ -346,6 +346,7 @@
             return;
         }
         state.paused = true;
+        state.pausedAt = performance.now();
         $('#bday-overlay').html(
             '<div class="bday-overlay-box">' +
             '<p class="bday-overlay-big">⏸️ 暫停中</p>' +
@@ -359,7 +360,12 @@
             return;
         }
         state.paused = false;
-        state.lastStep = performance.now();
+        const now = performance.now();
+        // 暫停時 ⭐ 的倒數也要停住，不然繼續後 ⭐ 會直接消失
+        if (state.bonus) {
+            state.bonus.until += now - state.pausedAt;
+        }
+        state.lastStep = now;
         $('#bday-overlay').hide().empty();
     }
 
